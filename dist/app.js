@@ -1,5 +1,5 @@
-import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=3";
-import { RhythmGame } from "./game.js?v=3";
+import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=4";
+import { RhythmGame } from "./game.js?v=4";
 
 const item = id => document.getElementById(id);
 const form = item("setup");

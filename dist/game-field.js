@@ -43,8 +43,8 @@ export class GameField {
     this.hitWidth = this.spanAt(this.strike);
     this.hitLaneWidth = this.hitWidth / 4;
     this.hitLeft = (width - this.hitWidth) / 2;
-    this.noteRadius = clamp(Math.min(this.hitLaneWidth * .23, height * .049), 12, 27);
-    this.targetRadius = this.noteRadius + 5;
+    this.noteRadius = Math.min(this.hitLaneWidth * .34, clamp(height * .065, 16, 35));
+    this.targetRadius = Math.min(this.hitLaneWidth * .43, this.noteRadius + 8);
     this.stage.style.setProperty("--hit-inset", this.hitLeft + "px");
     this.stage.style.setProperty("--strike-depth", (height - this.strike) + "px");
     this.stage.style.setProperty("--target-height", this.targetRadius * .56 + "px");
@@ -200,7 +200,7 @@ export class GameField {
       ctx.shadowBlur = this.motion.matches ? 0 : 10 + 15 * glow;
       ctx.shadowColor = color;
       ctx.strokeStyle = color;
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 2.3;
       ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.beginPath();
@@ -209,7 +209,7 @@ export class GameField {
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(x, this.strike, 1.8, 0, tau);
+      ctx.arc(x, this.strike, 2.3, 0, tau);
       ctx.fillStyle = color;
       ctx.fill();
     }
@@ -263,7 +263,9 @@ export class GameField {
     if (y < this.spawn - 27 || y > this.strike + 36) return;
     const ctx = this.ctx;
     const depth = clamp((y - this.spawn) / this.travel, 0, 1);
-    const radius = this.noteRadius * (.45 + .55 * depth) * (kind === "tail" ? .53 : 1);
+    const laneRadius = this.spanAt(y) / 4 * .43;
+    const noteRadius = Math.min(this.noteRadius * (.52 + .48 * depth), laneRadius);
+    const radius = noteRadius * (kind === "tail" ? .53 : 1);
     const x = this.x(lane, y);
     ctx.beginPath();
     ctx.ellipse(x, y + radius * .15, radius, radius * .57, 0, 0, tau);
