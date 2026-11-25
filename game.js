@@ -1,5 +1,5 @@
-import { difficulties } from "./audio.js?v=5";
-import { GameField, laneAt } from "./game-field.js?v=5";
+import { difficulties } from "./audio.js?v=6";
+import { GameField, laneAt } from "./game-field.js?v=6";
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
 const formatNumber = new Intl.NumberFormat("ru");
 const percent = value => Math.round(value * 100) + "%";
@@ -253,9 +253,12 @@ export class RhythmGame {
   }
 
   lightPads() {
-    const heldLanes = new Set(this.keys);
-    for (const position of this.pointers.values()) heldLanes.add(clamp(Math.round(position), 0, 3));
-    this.buttons.forEach((button, lane) => button.classList.toggle("pressed", heldLanes.has(lane)));
+    let pressed = 0;
+    for (const lane of this.keys) pressed |= 1 << lane;
+    for (const position of this.pointers.values()) pressed |= 1 << clamp(Math.round(position), 0, 3);
+    if (this.field.pressedLanes === pressed) return;
+    this.field.pressedLanes = pressed;
+    this.buttons.forEach((button, lane) => button.classList.toggle("pressed", Boolean(pressed & (1 << lane))));
   }
 
   press(lane, input) {
