@@ -1,7 +1,7 @@
-import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=10";
-import { RhythmGame } from "./game.js?v=10";
-import { LobbyMusic } from "./sound.js?v=10";
-import { bindCalibration } from "./timing.js?v=10";
+import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=11";
+import { RhythmGame } from "./game.js?v=11";
+import { LobbyMusic } from "./sound.js?v=11";
+import { bindCalibration } from "./timing.js?v=11";
 
 const item = id => document.getElementById(id);
 const form = item("setup");
