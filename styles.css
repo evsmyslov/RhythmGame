@@ -22,9 +22,9 @@
   --muted: #b1a5c2;
   --pink: #ff82c8;
   --button-text: #14273a;
-  --primary: linear-gradient(106deg, #a1f3df 0%, #aeddf3 49%, #c5b5f7 100%);
+  --primary: linear-gradient(106deg, #8dffd6 0%, #74eaf7 49%, #bea9ff 100%);
   --control-surface: linear-gradient(155deg, #3d4669 0%, #2b3352 38%, #20243e 100%);
-  --control-edge: #8498bc67;
+  --control-edge: #92aaff91;
   --max-width: 1040px;
 }
 * { box-sizing: border-box; }
@@ -68,6 +68,12 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
   box-shadow: inset 0 1px 3px #070f2d90, 0 1px 0 #0b1029;
 }
 .quiet-button svg { color: #e1efff; }
+.lobby-music-button[aria-pressed="true"] {
+  border-color: #8dffdbd1;
+  color: #baffed;
+  box-shadow: inset 0 1px 0 #cfffe952, 0 2px 0 #153c49, 0 0 14px #69ffc03e;
+}
+.lobby-music-button[aria-pressed="true"] svg { color: #a0ffd9; filter: drop-shadow(0 0 4px #74ffce93); }
 
 .home { padding-top: 28px; }
 .hero {
@@ -132,7 +138,7 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
   border-color: rgba(var(--choice), .8);
   color: #f7fbff;
   background: radial-gradient(ellipse at 50% -30%, rgba(var(--choice), .35), transparent 86%), #29314c;
-  box-shadow: inset 0 1px 0 rgba(var(--choice), .26), 0 3px 0 #151832, 0 5px 14px rgba(var(--choice), .15);
+  box-shadow: inset 0 1px 0 rgba(var(--choice), .26), 0 3px 0 #151832, 0 0 17px rgba(var(--choice), .31);
 }
 .difficulty-option input:disabled + .difficulty-card { cursor: default; opacity: .72; }
 .stars { display: flex; align-items: center; gap: 3px; color: #b1bcda; }
@@ -143,8 +149,8 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
 .primary-button {
   background: radial-gradient(ellipse at 26% -65%, #fff 0%, #ffffffa5 28%, transparent 70%), var(--primary);
   color: var(--button-text);
-  border-color: #d9f9f4;
-  box-shadow: inset 0 1px 1px #ffffffe0, inset 0 -3px 0 #5274a147, 0 3px 0 #3d5479, 0 8px 21px #87dac436;
+  border-color: #d2fffa;
+  box-shadow: inset 0 1px 1px #ffffffe0, inset 0 -3px 0 #5274a147, 0 3px 0 #3d5479, 0 0 19px #78f8e45c;
   transition: transform .16s cubic-bezier(.2,.85,.25,1), box-shadow .16s ease, filter .16s ease;
 }
 .primary-button:hover:not(:disabled) { filter: brightness(1.045); transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff, 0 4px 0 #5976a1, 0 11px 21px #9ce6d43d; }
@@ -214,6 +220,14 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
   background: linear-gradient(180deg, #110b22f5 0%, #110b20e5 63%, #110b2200 100%);
 }
 .game-toolbar .quiet-button { width: 44px; height: 44px; min-height: 0; padding: 0; color: #edf4ff; }
+.game-toolbar .quiet-button:not(:disabled) {
+  border-color: #a6baffb0;
+  background: radial-gradient(ellipse at 45% -20%, #6276b58c, transparent 80%), var(--control-surface);
+  box-shadow: inset 0 1px 0 #d8e5ff64, 0 3px 0 #171d42, 0 0 12px #869cff61;
+}
+.game-toolbar .quiet-button:active:not(:disabled) {
+  box-shadow: inset 0 1px 3px #0e2049b3, 0 1px 0 #171d42, 0 0 18px #95bfff85;
+}
 .game-toolbar .quiet-button svg { width: 19px; height: 19px; }
 .game-actions { grid-column: 4; grid-row: 1 / 3; display: flex; gap: 6px; justify-content: flex-end; }
 .fullscreen-notice {
@@ -261,22 +275,15 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
   background: linear-gradient(180deg, #090f2b4f, #141a3c9c 66%, #141734ed 100%),
     url("assets/dusk-lake.webp") center 53% / cover;
 }
-.stage::before {
-  content: "";
+.stage-light {
   position: absolute;
-  z-index: -1;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse at 14% 39%, var(--stage-ambient), transparent 44%),
-    radial-gradient(ellipse at 83% 58%, #93cdc95d, transparent 46%),
-    radial-gradient(ellipse at 35% 85%, #ed9cb051, transparent 49%);
-  opacity: .58;
-  animation: stage-colors 14s ease-in-out infinite alternate;
-}
-@keyframes stage-colors {
-  0% { opacity: .37; }
-  50% { opacity: .68; }
-  100% { opacity: .49; }
+  opacity: .22;
+  background: radial-gradient(ellipse at 5% 58%, #70f6dfbb, transparent 53%),
+    radial-gradient(ellipse at 97% 50%, #a28bffd6, transparent 54%),
+    radial-gradient(ellipse at 48% 21%, var(--stage-ambient), transparent 52%);
+  will-change: opacity;
 }
 .stage-bloom {
   position: absolute;
@@ -348,8 +355,8 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
   .header-inner { min-height: 60px; }
   .header-actions { gap: 6px; }
   .quiet-button { padding-inline: 8px; font-size: .78rem; }
-  .install-button { width: 37px; padding: 0; }
-  .install-button span { display: none; }
+  .install-button, .lobby-music-button { width: 37px; padding: 0; }
+  .install-button span, .lobby-music-button span { display: none; }
   .hero { min-height: 221px; background-image: linear-gradient(90deg, #140c23f5 0%, #140c23ca 32%, #1a0e3000 95%), url("assets/cover.webp"); background-position: center, 61% center; background-size: cover; }
   .hero-copy { padding: 22px; }
   .hero h1 { font-size: clamp(2.45rem, 9.75vw, 3.6rem); margin-bottom: 11px; }
@@ -360,6 +367,8 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
   .guide p { margin: 10px 0 12px; }
 }
 @media (max-width: 365px) {
+  #help-button { width: 37px; padding: 0; }
+  #help-button span { display: none; }
   .page-width, .header-inner { width: calc(100% - 24px); }
   .hero-copy { padding-inline: 16px; }
   .card { padding: 14px; }
@@ -385,7 +394,6 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
 }
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; }
-  .stage::before { animation: none; }
   .stage-bloom { display: none; }
   .primary-button, .secondary-button, .quiet-button, .paste-button, .icon-button, .difficulty-card { transition: none; }
 }

@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="РИТМ — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
   <title>РИТМ — Поймай свой ритм</title>
-  <link rel="manifest" href="manifest.webmanifest?v=6">
+  <link rel="manifest" href="manifest.webmanifest?v=7">
   <link rel="icon" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=6">
-  <script type="module" src="app.js?v=6"></script>
+  <link rel="stylesheet" href="styles.css?v=7">
+  <script type="module" src="app.js?v=7"></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -32,6 +32,8 @@
     <symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 11a8 8 0 1 1 2 6M4 5v6h6"/></symbol>
     <symbol id="i-fullscreen" viewBox="0 0 24 24"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></symbol>
     <symbol id="i-minimize" viewBox="0 0 24 24"><path d="M4 9h5V4m6 0v5h5M4 15h5v5m6 0v-5h5"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zm12 0a5 5 0 0 1 0 6m2-8a8 8 0 0 1 0 10"/></symbol>
+    <symbol id="i-volume-off" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zm12 1 4 4m0-4-4 4"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></symbol>
   </svg>
 
@@ -40,12 +42,15 @@
       <a class="brand" href="./" aria-label="РИТМ, главная">
         <span class="brand-icon"><svg><use href="#i-wave"/></svg></span><span>РИТМ<span class="brand-period">.</span></span>
       </a>
-      <nav class="header-actions" aria-label="Информация об игре">
+      <nav class="header-actions" aria-label="Управление и справка">
+        <button class="quiet-button lobby-music-button" id="lobby-music-button" aria-label="Музыка в лобби" aria-pressed="false" type="button"><svg><use href="#i-volume-off"/></svg><span>Музыка</span></button>
         <button class="quiet-button install-button" id="install-button" type="button" hidden><svg><use href="#i-download"/></svg><span>Установить</span></button>
-        <button class="quiet-button" id="help-button" type="button"><svg><use href="#i-help"/></svg>Как играть</button>
+        <button class="quiet-button" id="help-button" aria-label="Как играть" type="button"><svg><use href="#i-help"/></svg><span>Как играть</span></button>
       </nav>
     </div>
   </header>
+
+  <audio id="lobby-music" src="assets/night-circuit.mp3" preload="none" loop aria-hidden="true"></audio>
 
   <main class="home page-width" id="home">
     <section class="hero" aria-labelledby="hero-title">
@@ -135,6 +140,7 @@
     </div>
     <p class="fullscreen-notice" id="fullscreen-notice" role="status" hidden>Браузер не включил полноэкранный режим.</p>
     <div class="stage" id="stage">
+      <div class="stage-light" aria-hidden="true"></div>
       <div class="stage-bloom" aria-hidden="true"></div>
       <canvas id="chart-canvas" aria-hidden="true"></canvas>
       <div class="lane-controls" id="lane-controls" aria-label="Игровые дорожки">

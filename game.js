@@ -1,5 +1,6 @@
-import { difficulties } from "./audio.js?v=6";
-import { GameField, laneAt } from "./game-field.js?v=6";
+import { difficulties } from "./audio.js?v=7";
+import { GameField, laneAt } from "./game-field.js?v=7";
+import { HitSounds } from "./sound.js?v=7";
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
 const formatNumber = new Intl.NumberFormat("ru");
 const percent = value => Math.round(value * 100) + "%";
@@ -131,6 +132,7 @@ export class RhythmGame {
   makeContext() {
     const Audio = window.AudioContext || window.webkitAudioContext;
     this.context = new Audio();
+    this.hitSounds = new HitSounds(this.context);
     this.context.addEventListener("statechange", () => {
       if (this.context.state === "interrupted" || this.context.state === "suspended") this.pause(false);
     });
@@ -267,7 +269,10 @@ export class RhythmGame {
     this.updateSlide(time);
     this.markMisses(time);
     this.field.illuminate(lane);
-    if (this.slide) return;
+    if (this.slide) {
+      this.hitSounds.play();
+      return;
+    }
 
     let closest;
     let best = this.settings.window;
@@ -280,14 +285,18 @@ export class RhythmGame {
         best = delta;
       }
     }
-    if (!closest) return;
+    if (!closest || (closest.path && !input)) {
+      this.hitSounds.play();
+      return;
+    }
 
     const perfect = best <= this.settings.window * .46;
-    if (closest.path && input) {
+    if (closest.path) {
+      this.hitSounds.play(true);
       this.slide = { note: closest, input, perfect, offPathSince: null, lastLane: lane };
       this.field.illuminate(lane, 8);
       this.feedback("Удерживай", "#e1c2ff");
-    } else if (!closest.path) {
+    } else {
       this.hit(closest, perfect, lane);
     }
   }
@@ -360,6 +369,7 @@ export class RhythmGame {
   }
 
   hit(note, perfect, lane) {
+    this.hitSounds.play(true, perfect);
     note.judged = true;
     this.combo++;
     this.maxCombo = Math.max(this.maxCombo, this.combo);

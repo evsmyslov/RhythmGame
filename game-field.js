@@ -1,5 +1,5 @@
-import { StageEffects } from "./stage-effects.js?v=6";
-import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=6";
+import { StageEffects } from "./stage-effects.js?v=7";
+import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=7";
 
 const laneColors = ["#ffca8f", "#c7b1ff", "#82ead1", "#a5ccff"];
 const spectrum = ["#f9ca94", "#f6e4bc", "#cbb7ff", "#82ead1", "#a5ccff"];
@@ -21,7 +21,9 @@ export class GameField {
     this.stage = stage;
     this.ctx = canvas.getContext("2d");
     this.motion = matchMedia("(prefers-reduced-motion: reduce)");
-    this.effects = new StageEffects(this.ctx, stage.querySelector(".stage-bloom"), this.motion);
+    this.effects = new StageEffects(
+      this.ctx, stage.querySelector(".stage-bloom"), stage.querySelector(".stage-light"), this.motion
+    );
     this.reset();
   }
 
@@ -224,16 +226,16 @@ export class GameField {
       const radius = this.targetRadius * (1 + breath * .035 + pulse * .035 + pressure * .045);
       const vertical = 1 - pressure * .23 + glow * (1 - pressure) * .075;
 
-      ctx.globalAlpha = .23 + breath * .08 + pulse * .19 + glow * .31;
+      ctx.globalAlpha = .30 + breath * .08 + pulse * .25 + glow * .31;
       drawLaneSprite(ctx, sprite.aura, x, this.strike + 5, radius * 1.42, .79);
       ctx.globalAlpha = 1;
       drawLaneSprite(ctx, sprite.target, x, y, radius, vertical);
-      ctx.globalAlpha = .18 + glow * .64 + pressure * .15;
+      ctx.globalAlpha = .34 + glow * .49 + pressure * .15;
       ctx.beginPath();
       const sweep = moving ? phase : .25;
       ctx.ellipse(x, y - 1, radius * .76, radius * .42 * vertical, 0, sweep, sweep + 1.5);
       ctx.strokeStyle = glow > .08 ? "#faffff" : color;
-      ctx.lineWidth = 1 + glow;
+      ctx.lineWidth = 1.25 + glow;
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
