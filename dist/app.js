@@ -1,5 +1,5 @@
-import { parseTrackLink, prepareTrack } from "./audio.js";
-import { RhythmGame } from "./game.js";
+import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=2";
+import { RhythmGame } from "./game.js?v=2";
 
 const item = id => document.getElementById(id);
 const form = item("setup");
@@ -14,6 +14,29 @@ const errorMessage = item("source-error");
 const home = item("home");
 const gameScreen = item("game");
 const game = new RhythmGame();
+const fullscreenButton = item("fullscreen-button");
+fullscreenButton.hidden = !document.fullscreenEnabled || !gameScreen.requestFullscreen;
+let fullscreenNoticeTimer = null;
+
+fullscreenButton.addEventListener("click", async () => {
+  const notice = item("fullscreen-notice");
+  notice.hidden = true;
+  clearTimeout(fullscreenNoticeTimer);
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await gameScreen.requestFullscreen();
+  } catch {
+    notice.hidden = false;
+    fullscreenNoticeTimer = setTimeout(() => { notice.hidden = true; }, 3600);
+  }
+});
+document.addEventListener("fullscreenchange", () => {
+  const fullscreen = document.fullscreenElement === gameScreen;
+  const label = fullscreen ? "Выйти из полноэкранного режима" : "Во весь экран";
+  fullscreenButton.setAttribute("aria-label", label);
+  fullscreenButton.title = label;
+  fullscreenButton.querySelector("use").setAttribute("href", fullscreen ? "#i-minimize" : "#i-fullscreen");
+});
 const homeHash = location.hash === "#play" ? "" : location.hash;
 let job = null;
 let file = null;
@@ -28,13 +51,24 @@ function setError(message = "", onLink = false) {
   else trackURL.removeAttribute("aria-invalid");
 }
 
+function updateStreamingSource() {
+  const reference = streamingReference(trackURL.value.trim());
+  item("streaming-source").hidden = !reference;
+  if (!reference) return;
+  const link = item("streaming-link");
+  link.href = reference.url;
+  link.querySelector("span").textContent = "Открыть в " + reference.provider;
+  item("streaming-hint").hidden = Boolean(file);
+}
+
 function setFile(selected) {
   file = selected;
   if (!selected) trackFile.value = "";
-  if (selected) trackURL.value = "";
+  if (selected && !streamingReference(trackURL.value.trim())) trackURL.value = "";
   fileTag.hidden = !selected;
   fileButton.hidden = Boolean(selected);
   item("file-name").textContent = selected?.name ?? "";
+  updateStreamingSource();
 }
 
 fileButton.addEventListener("click", () => trackFile.click());
@@ -52,16 +86,23 @@ removeFile.addEventListener("click", () => {
 
 trackURL.addEventListener("input", () => {
   setError();
-  if (file) setFile(null);
+  updateStreamingSource();
 });
+trackURL.addEventListener("change", clearFileForDirectLink);
+
+function clearFileForDirectLink() {
+  const value = trackURL.value.trim();
+  if (file && value && !streamingReference(value)) setFile(null);
+}
 
 item("paste-button").addEventListener("click", async () => {
   try {
     const value = await navigator.clipboard.readText();
     if (job) return;
     if (value.trim()) {
-      setFile(null);
       trackURL.value = value.trim();
+      clearFileForDirectLink();
+      updateStreamingSource();
       setError();
     } else {
       setError("В буфере обмена нет ссылки.");
@@ -97,10 +138,17 @@ async function generate(demo) {
   if (job) return;
   setError();
   let url;
-  if (!demo && !file) {
+  const source = trackURL.value.trim();
+  const reference = streamingReference(source);
+  if (!demo && reference && !file) {
+    setError("Для этой ссылки добавь аудиофайл трека.");
+    fileButton.focus();
+    return;
+  }
+  if (!demo && !reference && (source || !file)) {
     try {
-      if (!trackURL.value.trim()) throw new Error("Вставь ссылку на аудио или выбери файл.");
-      url = parseTrackLink(trackURL.value.trim());
+      if (!source) throw new Error("Вставь ссылку на трек или выбери файл.");
+      url = parseTrackLink(source);
     } catch (error) {
       setError(error.message, true);
       trackURL.focus();
@@ -114,7 +162,7 @@ async function generate(demo) {
   setBusy(true);
   try {
     const track = await prepareTrack({
-      file: demo ? null : file,
+      file: demo || url ? null : file,
       url,
       demo,
       difficulty
@@ -144,6 +192,8 @@ function showGame(track) {
 function showHome() {
   if (gameScreen.hidden) return;
   game.close();
+  item("fullscreen-notice").hidden = true;
+  if (document.fullscreenElement === gameScreen) document.exitFullscreen().catch(() => {});
   gameScreen.hidden = true;
   home.hidden = false;
   document.body.classList.remove("playing-view");
