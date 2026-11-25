@@ -1,14 +1,17 @@
-const currentCache = "ritm-v1";
+const currentCache = "ritm-v2";
 const files = [
-  "./", "./index.html", "./styles.css", "./app.js", "./audio.js", "./game.js", "./chart-worker.js",
-  "./manifest.webmanifest", "./assets/cover.webp", "./assets/neon-pulse.mp3",
+  "./", "./index.html", "./styles.css?v=2", "./app.js?v=2", "./audio.js?v=2", "./game.js?v=2",
+  "./game-field.js?v=2", "./chart-worker.js?v=2", "./manifest.webmanifest?v=2",
+  "./assets/cover.webp", "./assets/aurora-stage.webp", "./assets/pulse-stage.webp", "./assets/neon-pulse.mp3",
   "./assets/manrope-latin.woff2", "./assets/manrope-cyrillic.woff2",
   "./assets/icon-192.png", "./assets/icon-512.png", "./assets/icon-maskable.png"
 ];
 const local = new Set(files.map(path => new URL(path, self.registration.scope).href));
 
 self.addEventListener("install", event => {
-  event.waitUntil(caches.open(currentCache).then(cache => cache.addAll(files)));
+  event.waitUntil(caches.open(currentCache).then(cache =>
+    cache.addAll(files.map(path => new Request(path, { cache: "reload" })))
+  ));
 });
 
 self.addEventListener("activate", event => {

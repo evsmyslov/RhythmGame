@@ -126,5 +126,60 @@ function makeChart(samples, sampleRate, difficulty) {
     }
   });
 
-  return notes;
+  return addSlides(notes, difficulty);
+}
+
+function addSlides(notes, difficulty) {
+  const interval = [0, 2.55, 2.02, 1.68][difficulty];
+  const result = [];
+  let nextSlideTime = 1.5;
+  let slideNumber = 0;
+  for (let index = 0; index < notes.length; index++) {
+    const first = notes[index];
+    if (first.time < nextSlideTime || hasChord(notes, index)) {
+      result.push(first);
+      continue;
+    }
+
+    const middle = findEnd(notes, index, difficulty === 3 ? .29 : .42, .74);
+    if (middle < 0) {
+      result.push(first);
+      continue;
+    }
+
+    const staying = slideNumber % (difficulty === 1 ? 2 : 3) === 0;
+    const path = [{ time: first.time, lane: first.lane }];
+    const step = staying ? 0 : first.lane === 0 ? 1 : first.lane === 3 ? -1 : slideNumber % 2 === 0 ? -1 : 1;
+    path.push({ time: notes[middle].time, lane: first.lane + step });
+    index = middle;
+
+    if (difficulty === 3 && !staying && slideNumber % 2 === 0) {
+      const end = findEnd(notes, middle, .28, .54);
+      if (end >= 0) {
+        const nextLane = first.lane + step * 2;
+        path.push({ time: notes[end].time, lane: nextLane >= 0 && nextLane <= 3 ? nextLane : first.lane });
+        index = end;
+      }
+    }
+
+    result.push({ ...first, path });
+    nextSlideTime = notes[index].time + interval;
+    slideNumber++;
+  }
+  return result;
+}
+
+function hasChord(notes, index) {
+  return notes[index - 1]?.time === notes[index].time || notes[index + 1]?.time === notes[index].time;
+}
+
+function findEnd(notes, from, min, max) {
+  for (let index = from + 1; index < notes.length; index++) {
+    const duration = notes[index].time - notes[from].time;
+    if (duration > max) break;
+    if (duration >= min && !hasChord(notes, index) && (notes[index + 1]?.time ?? Infinity) - notes[index].time >= .12) {
+      return index;
+    }
+  }
+  return -1;
 }

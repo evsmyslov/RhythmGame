@@ -8,8 +8,36 @@ export const difficulties = {
   3: { name: "Сложно", stars: "★★★", approach: 1.16, window: .118 }
 };
 
-export function titleFromName(name) {
-  return name.replace(/\.(mp3|wav|ogg|opus|m4a|aac|flac|webm|aiff?)$/i, "").replace(/[\x00-\x1F\x7F]/g, "").trim().slice(0, 120) || "Аудиотрек";
+export function streamingReference(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.username || url.password) return null;
+
+  const host = url.hostname.replace(/^www\./, "");
+  const parts = url.pathname.split("/").filter(Boolean);
+  const youtubeHosts = ["youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com"];
+  if (host === "youtu.be" || youtubeHosts.includes(host)) {
+    const id = host === "youtu.be" ? parts[0]
+      : parts[0] === "watch" ? url.searchParams.get("v")
+      : ["shorts", "live", "embed"].includes(parts[0]) ? parts[1] : null;
+    if (id && /^[A-Za-z0-9_-]{11}$/.test(id)) {
+      return { provider: "YouTube", url: "https://www.youtube.com/watch?v=" + id };
+    }
+  }
+  if (host === "open.spotify.com") {
+    if (parts[0]?.startsWith("intl-")) parts.shift();
+    if (parts[0] === "track" && /^[A-Za-z0-9]{22}$/.test(parts[1])) {
+      return { provider: "Spotify", url: "https://open.spotify.com/track/" + parts[1] };
+    }
+  }
+  if (host === "spotify.link" && parts.length === 1 && /^[A-Za-z0-9_-]{4,64}$/.test(parts[0])) {
+    return { provider: "Spotify", url: "https://spotify.link/" + parts[0] };
+  }
+  return null;
 }
 
 export function parseTrackLink(value) {
@@ -22,8 +50,8 @@ export function parseTrackLink(value) {
   if (url.protocol !== "https:" || url.username || url.password) {
     throw new Error("Вставь прямую ссылку на аудио, начинающуюся с https://.");
   }
-  if (/(^|\.)(youtube\.com|youtu\.be|spotify\.com|music\.apple\.com|music\.yandex\.ru|soundcloud\.com)$/i.test(url.hostname)) {
-    throw new Error("Это страница песни. Используй прямую ссылку на аудио или загрузи файл с телефона.");
+  if (/(^|\.)(youtube\.com|youtube-nocookie\.com|youtu\.be|spotify\.com|spotify\.link|music\.apple\.com|music\.yandex\.ru|soundcloud\.com)$/i.test(url.hostname)) {
+    throw new Error("Нужна ссылка на отдельный трек или видео. Используй прямую ссылку на аудио или загрузи файл с телефона.");
   }
   if (/(^|\.)dropbox\.com$/i.test(url.hostname)) {
     url.searchParams.delete("dl");
@@ -52,11 +80,7 @@ export async function prepareTrack({ file, url, demo, difficulty }, signal, upda
   update("Генерируем ноты…");
   const notes = await scanAudio(buffer, difficulty, signal);
   if (!notes.length) throw new Error("В этом аудио не нашлось слышимых нот или ударов для уровня.");
-  const part = url?.pathname.split("/").pop() || "Аудиотрек";
-  let name = part;
-  try { name = decodeURIComponent(part); } catch { /* Use the URL segment as written. */ }
   return {
-    title: demo ? "Neon Pulse" : titleFromName(file?.name ?? name),
     buffer,
     difficulty,
     notes,
@@ -127,7 +151,7 @@ function scanAudio(buffer, difficulty, signal) {
   }
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./chart-worker.js", import.meta.url));
+    const worker = new Worker(new URL("./chart-worker.js?v=2", import.meta.url));
     const cancel = () => finish(reject, signal.reason);
     function finish(settle, data) {
       worker.terminate();

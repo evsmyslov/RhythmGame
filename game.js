@@ -1,12 +1,7 @@
-import { difficulties } from "./audio.js";
-
-const laneColors = ["#ff7ac7", "#c892ff", "#78e3f2", "#929eff"];
+import { difficulties } from "./audio.js?v=2";
+import { GameField, laneAt } from "./game-field.js?v=2";
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
 const formatNumber = new Intl.NumberFormat("ru");
-const formatDuration = duration => {
-  const seconds = Math.floor(duration);
-  return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
-};
 const percent = value => Math.round(value * 100) + "%";
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const item = id => document.getElementById(id);
@@ -14,31 +9,44 @@ const item = id => document.getElementById(id);
 export class RhythmGame {
   constructor() {
     this.phase = "idle";
-    this.canvas = item("chart-canvas");
-    this.paint = this.canvas.getContext("2d");
-    this.width = 0;
-    this.height = 0;
+    this.stage = item("stage");
+    this.field = new GameField(item("chart-canvas"), this.stage);
+    this.pointers = new Map();
+    this.keys = new Set();
+    this.buttons = Array.from(document.querySelectorAll(".lane-control"));
     this.context = null;
     this.source = null;
     this.animation = 0;
     this.tick = this.tick.bind(this);
     this.resize = this.resize.bind(this);
 
-    new ResizeObserver(this.resize).observe(item("stage"));
+    new ResizeObserver(this.resize).observe(this.stage);
     item("start-button").addEventListener("click", () => this.start());
     item("replay-button").addEventListener("click", () => this.start());
     item("pause-button").addEventListener("click", () => this.pause());
-    document.querySelectorAll(".lane-control").forEach(button => {
-      const lane = Number(button.dataset.lane);
-      button.addEventListener("pointerdown", event => {
-        if (event.button !== 0) return;
-        event.preventDefault();
-        this.press(lane);
-      });
-      button.addEventListener("click", event => {
-        if (event.detail === 0) this.press(lane);
-      });
+    const controls = item("lane-controls");
+    controls.addEventListener("pointerdown", event => {
+      if (event.button !== 0 || this.phase !== "playing") return;
+      event.preventDefault();
+      const position = this.field.lanePosition(event.clientX);
+      const lane = clamp(Math.round(position), 0, 3);
+      controls.setPointerCapture(event.pointerId);
+      this.pointers.set(event.pointerId, position);
+      this.lightPads();
+      this.press(lane, { pointer: event.pointerId });
     });
+    controls.addEventListener("pointermove", event => {
+      if (!this.pointers.has(event.pointerId)) return;
+      this.pointers.set(event.pointerId, this.field.lanePosition(event.clientX));
+      this.lightPads();
+    });
+    controls.addEventListener("pointerup", event => this.releasePointer(event, false));
+    controls.addEventListener("pointercancel", event => this.releasePointer(event, true));
+    controls.addEventListener("lostpointercapture", event => this.releasePointer(event, true));
+    this.buttons.forEach((button, lane) => button.addEventListener("click", event => {
+      if (event.detail === 0) this.press(lane);
+    }));
+
     document.addEventListener("keydown", event => {
       if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
       if (event.code === "Escape" && ["countdown", "playing"].includes(this.phase)) {
@@ -47,9 +55,17 @@ export class RhythmGame {
       }
       if (event.code in keyLanes && this.phase === "playing") {
         event.preventDefault();
-        this.press(keyLanes[event.code]);
+        const lane = keyLanes[event.code];
+        this.keys.add(lane);
+        this.lightPads();
+        this.press(lane, { keyboard: true });
       }
     });
+    document.addEventListener("keyup", event => {
+      if (!this.keys.delete(keyLanes[event.code])) return;
+      this.lightPads();
+    });
+    window.addEventListener("blur", () => this.pause(false));
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) this.pause(false);
     });
@@ -58,8 +74,8 @@ export class RhythmGame {
   open(track) {
     this.track = track;
     this.settings = difficulties[track.difficulty];
-    item("game-title").textContent = track.title;
-    item("game-detail").textContent = this.settings.stars + " · " + this.settings.name + " · " + formatDuration(track.duration);
+    item("game").dataset.theme = track.difficulty;
+    this.slideCount = track.notes.filter(note => note.path).length;
     this.reset();
     this.showReady(false);
     this.resize();
@@ -69,6 +85,7 @@ export class RhythmGame {
   close() {
     this.stopAudio();
     this.phase = "idle";
+    this.clearInputs();
     this.track = null;
     this.notes = [];
   }
@@ -86,7 +103,8 @@ export class RhythmGame {
     this.offset = 0;
     this.countText = "";
     this.feedbackUntil = 0;
-    this.flashes = [0, 0, 0, 0];
+    this.clearInputs();
+    this.field.reset();
     item("judgement").textContent = "";
     this.updateScores();
     this.updateProgress(0);
@@ -101,7 +119,8 @@ export class RhythmGame {
     item("ready-screen").hidden = false;
     item("play-error").hidden = true;
     item("ready-title").textContent = paused ? "Пауза" : "Уровень готов";
-    item("ready-detail").textContent = paused ? this.track.title : "Нот в треке — " + formatNumber.format(this.notes.length);
+    item("ready-detail").textContent = this.settings.stars + " · " + this.settings.name + " · " + formatNumber.format(this.notes.length) + " нот";
+    item("ready-hint").hidden = paused || !this.slideCount;
     item("start-button").querySelector("span").textContent = paused ? "Продолжить" : "Начать игру";
     if (focus) item("start-button").focus({ preventScroll: true });
   }
@@ -182,7 +201,10 @@ export class RhythmGame {
       this.finish();
       return;
     }
-    this.offset = clamp(time, this.offset, Math.max(0, this.track.duration - .01));
+    const resumeTime = this.slide ? Math.max(0, this.slide.note.time - .23) : time;
+    this.offset = clamp(resumeTime, this.offset, Math.max(0, this.track.duration - .01));
+    this.clearInputs();
+    this.field.reset();
     this.stopAudio();
     item("judgement").textContent = "";
     this.showReady(true, focus);
@@ -203,6 +225,7 @@ export class RhythmGame {
         this.phase = "playing";
         item("countdown").hidden = true;
       }
+      this.updateSlide(time);
       this.markMisses(time);
       this.updateProgress(time);
       if (time >= this.track.duration) {
@@ -218,11 +241,27 @@ export class RhythmGame {
     this.animation = requestAnimationFrame(this.tick);
   }
 
-  press(lane) {
+  clearInputs() {
+    this.pointers.clear();
+    this.keys.clear();
+    this.slide = null;
+    this.lightPads();
+  }
+
+  lightPads() {
+    const heldLanes = new Set(this.keys);
+    for (const position of this.pointers.values()) heldLanes.add(clamp(Math.round(position), 0, 3));
+    this.buttons.forEach((button, lane) => button.classList.toggle("pressed", heldLanes.has(lane)));
+  }
+
+  press(lane, input) {
     if (this.phase !== "playing") return;
     const time = this.playedTime();
+    this.updateSlide(time);
     this.markMisses(time);
-    this.flashes[lane] = performance.now();
+    this.field.illuminate(lane);
+    if (this.slide) return;
+
     let closest;
     let best = this.settings.window;
     for (let i = this.missCursor; i < this.notes.length; i++) {
@@ -236,13 +275,92 @@ export class RhythmGame {
     }
     if (!closest) return;
 
-    closest.judged = true;
+    const perfect = best <= this.settings.window * .46;
+    if (closest.path && input) {
+      this.slide = { note: closest, input, perfect, offPathSince: null, lastLane: lane };
+      this.field.illuminate(lane, 8);
+      this.feedback("Удерживай", "#e1c2ff");
+    } else if (!closest.path) {
+      this.hit(closest, perfect, lane);
+    }
+  }
+
+  updateSlide(time) {
+    const slide = this.slide;
+    if (!slide) return;
+    const { note, input } = slide;
+    const lane = laneAt(note.path, time);
+    const distance = input.keyboard
+      ? Math.min(...Array.from(this.keys, key => Math.abs(key - lane)))
+      : Math.abs((this.pointers.get(input.pointer) ?? Infinity) - lane);
+    const nearest = Math.round(lane);
+    const end = note.path.at(-1);
+    const onPath = distance <= .64;
+
+    if (onPath) {
+      slide.offPathSince = null;
+      if (nearest !== slide.lastLane) {
+        slide.lastLane = nearest;
+        this.field.illuminate(lane, 7);
+      }
+    } else {
+      slide.offPathSince ??= time;
+    }
+
+    if (time >= end.time) {
+      if (onPath) this.completeSlide();
+      else this.failSlide();
+    } else if (slide.offPathSince !== null && time - slide.offPathSince > this.settings.window * .82) {
+      this.failSlide();
+    }
+  }
+
+  releasePointer(event, cancelled) {
+    const position = this.pointers.get(event.pointerId);
+    if (position === undefined) return;
+    if (this.slide?.input.pointer === event.pointerId) {
+      if (cancelled) this.failSlide();
+      else {
+        const time = this.playedTime();
+        const end = this.slide.note.path.at(-1);
+        const finalPosition = this.field.lanePosition(event.clientX);
+        this.pointers.set(event.pointerId, finalPosition);
+        this.updateSlide(time);
+        if (this.slide) {
+          if (time >= end.time - .065 && Math.abs(finalPosition - end.lane) <= .64) this.completeSlide();
+          else this.failSlide();
+        }
+      }
+    }
+    this.pointers.delete(event.pointerId);
+    this.lightPads();
+  }
+
+  completeSlide() {
+    const { note, perfect } = this.slide;
+    this.slide = null;
+    this.hit(note, perfect, note.path.at(-1).lane);
+  }
+
+  failSlide() {
+    const { note } = this.slide;
+    this.slide = null;
+    note.judged = true;
+    this.misses++;
+    this.combo = 0;
+    this.feedback("Мимо", "#d0b5ec");
+    this.updateScores();
+  }
+
+  hit(note, perfect, lane) {
+    note.judged = true;
     this.combo++;
     this.maxCombo = Math.max(this.maxCombo, this.combo);
-    const perfect = best <= this.settings.window * .46;
     if (perfect) this.perfect++;
     else this.good++;
-    this.score += (perfect ? 1000 : 650) + Math.min((this.combo - 1) * 12, 360);
+    const points = perfect ? 1000 : 650;
+    this.score += (note.path ? Math.round(points * 1.45) : points) + Math.min((this.combo - 1) * 12, 360);
+    this.field.illuminate(lane, note.path ? 19 : perfect ? 13 : 7);
     this.feedback(perfect ? "Идеально" : "Хорошо", perfect ? "#ffa9dc" : "#9decf5");
     this.updateScores();
   }
@@ -251,7 +369,7 @@ export class RhythmGame {
     let changed = false;
     while (this.missCursor < this.notes.length) {
       const note = this.notes[this.missCursor];
-      if (!all && note.time >= time - this.settings.window) break;
+      if (!all && (note === this.slide?.note || note.time >= time - this.settings.window)) break;
       this.missCursor++;
       if (note.judged) continue;
       note.judged = true;
@@ -297,6 +415,7 @@ export class RhythmGame {
   finish() {
     this.stopAudio();
     this.phase = "finished";
+    this.clearInputs();
     this.markMisses(this.track.duration, true);
     this.updateProgress(this.track.duration);
     item("pause-button").disabled = true;
@@ -315,73 +434,12 @@ export class RhythmGame {
 
   resize() {
     if (!this.track) return;
-    const width = this.canvas.clientWidth;
-    const height = this.canvas.clientHeight;
-    if (!width || !height) return;
-    this.width = width;
-    this.height = height;
-    const pixels = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = Math.round(width * pixels);
-    this.canvas.height = Math.round(height * pixels);
-    this.paint.setTransform(pixels, 0, 0, pixels, 0, 0);
+    this.field.resize();
     const stateTime = { ready: -.9, paused: this.offset, finished: this.track.duration };
     this.draw(stateTime[this.phase] ?? this.offset);
   }
 
   draw(time) {
-    if (!this.width || !this.height) return;
-    const ctx = this.paint;
-    const w = this.width;
-    const h = this.height;
-    const laneWidth = w / 4;
-    const strike = h - Math.min(79, h * .19);
-    const now = performance.now();
-    ctx.fillStyle = "#110b20";
-    ctx.fillRect(0, 0, w, h);
-
-    laneColors.forEach((color, lane) => {
-      const x = lane * laneWidth;
-      const fade = ctx.createLinearGradient(0, 0, 0, h);
-      fade.addColorStop(0, color + "05");
-      fade.addColorStop(.72, color + "17");
-      fade.addColorStop(1, color + "28");
-      ctx.fillStyle = fade;
-      ctx.fillRect(x, 0, laneWidth, h);
-      if (lane) {
-        ctx.fillStyle = "#b289dd32";
-        ctx.fillRect(x, 0, 1, h);
-      }
-      const flash = clamp(1 - (now - this.flashes[lane]) / 190, 0, 1);
-      if (flash > 0 && this.flashes[lane]) {
-        ctx.globalAlpha = flash * .23;
-        ctx.fillStyle = color;
-        ctx.fillRect(x, 0, laneWidth, h);
-        ctx.globalAlpha = 1;
-      }
-    });
-
-    ctx.fillStyle = "#f1d0ff";
-    ctx.shadowBlur = 13;
-    ctx.shadowColor = "#c184ff";
-    ctx.fillRect(0, strike - 1, w, 2);
-    ctx.shadowBlur = 0;
-
-    const approach = this.settings.approach;
-    for (let i = this.missCursor; i < this.notes.length; i++) {
-      const note = this.notes[i];
-      if (note.time - time > approach + .04) break;
-      if (note.judged) continue;
-      const y = strike - (note.time - time) / approach * (strike + 8);
-      const inset = Math.max(7, laneWidth * .105);
-      const noteHeight = clamp(laneWidth * .12, 9, 16);
-      const color = laneColors[note.lane];
-      ctx.fillStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.roundRect(note.lane * laneWidth + inset, y - noteHeight / 2, laneWidth - inset * 2, noteHeight, 5);
-      ctx.fill();
-    }
-    ctx.shadowBlur = 0;
+    this.field.draw(this.notes, this.missCursor, time, this.settings.approach, this.slide?.note);
   }
 }
