@@ -1,7 +1,8 @@
-import { StageEffects } from "./stage-effects.js?v=5";
+import { StageEffects } from "./stage-effects.js?v=6";
+import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=6";
 
-const laneColors = ["#ff9bcb", "#c6b0ff", "#8bf0eb", "#a5c8ff"];
-const spectrum = ["#ff9bcb", "#ffd2ab", "#cbb7ff", "#8bf0eb", "#a5c8ff"];
+const laneColors = ["#ffca8f", "#c7b1ff", "#82ead1", "#a5ccff"];
+const spectrum = ["#f9ca94", "#f6e4bc", "#cbb7ff", "#82ead1", "#a5ccff"];
 const tau = Math.PI * 2;
 const clamp = (number, min, max) => Math.max(min, Math.min(max, number));
 
@@ -29,6 +30,9 @@ export class GameField {
     this.sparks = [];
     this.ripples = [];
     this.impacts = [];
+    this.pressDepth = [0, 0, 0, 0];
+    this.pressedLanes = 0;
+    this.previousFrame = undefined;
     this.effects.reset();
   }
 
@@ -54,10 +58,12 @@ export class GameField {
     this.stage.style.setProperty("--strike-depth", (height - this.strike) + "px");
     this.stage.style.setProperty("--target-height", this.targetRadius * .56 + "px");
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelLimit = Math.max(1, Math.sqrt(1320000 / (width * height)));
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.65, pixelLimit);
     this.canvas.width = Math.round(width * dpr);
     this.canvas.height = Math.round(height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.laneSprites ??= buildLaneSprites(laneColors);
     this.effects.resize(width, height, this.spawn);
     this.laneShades = laneColors.map(color => {
       const shade = this.ctx.createLinearGradient(0, this.spawn, 0, height);
@@ -101,7 +107,7 @@ export class GameField {
     const color = laneColors[nearest];
     this.ripples.push({ lane, born: now, color, size: 1.4 + power / 21 });
     if (power >= 18) this.ripples.push({ lane, born: now + 64, color: spectrum[(nearest + 2) % spectrum.length], size: 2.25 });
-    this.impacts.push({ lane, born: now, color, power: Math.min(1, power / 20) });
+    this.impacts.push({ lane, born: now, sprite: this.laneSprites[nearest].flash, power: Math.min(1, power / 20) });
     this.scatter(lane, power, now, false);
   }
 
@@ -128,7 +134,7 @@ export class GameField {
         size: 1.1 + Math.random() * 2.4, life: .25 + Math.random() * (celebration ? .61 : .30)
       });
     }
-    if (this.sparks.length > 150) this.sparks.splice(0, this.sparks.length - 150);
+    if (this.sparks.length > 108) this.sparks.splice(0, this.sparks.length - 108);
   }
 
   draw(notes, cursor, time, approach, activeNote, musicPlaying) {
@@ -140,7 +146,7 @@ export class GameField {
     this.effects.draw(musicPlaying ? time : -1, now);
     this.drawHighway();
     this.effects.drawRoad(this);
-    this.drawTargets(now);
+    this.drawTargets(now, musicPlaying);
 
     ctx.save();
     ctx.beginPath();
@@ -155,7 +161,7 @@ export class GameField {
       if (note.time - time > approach + .1) break;
       if (note.judged) continue;
       if (note.path) this.drawSlide(note, position, time, activeNote === note);
-      else this.drawHead(note.lane, position(note.time), laneColors[note.lane]);
+      else this.drawHead(note.lane, position(note.time));
     }
     ctx.restore();
     this.drawEffects(now);
@@ -194,61 +200,59 @@ export class GameField {
     }
   }
 
-  drawTargets(now) {
+  drawTargets(now, musicPlaying) {
     const ctx = this.ctx;
+    const elapsed = clamp(now - (this.previousFrame ?? now - 16), 0, 50);
+    const response = this.motion.matches ? 1 : 1 - Math.exp(-elapsed * .055);
+    const moving = musicPlaying && !this.motion.matches;
+    this.previousFrame = now;
+
     for (let lane = 0; lane < 4; lane++) {
-      const glow = Math.max(0, 1 - (now - this.flashes[lane]) / 240);
+      const age = now - this.flashes[lane];
+      const glow = Math.max(0, 1 - age / 245);
+      const holding = (this.pressedLanes & (1 << lane)) ? 1 : 0;
+      this.pressDepth[lane] += (holding - this.pressDepth[lane]) * response;
+      const tapTravel = moving ? Math.max(0, 1 - age / 94) * .8 : 0;
+      const pressure = Math.max(this.pressDepth[lane], tapTravel);
+      const phase = now * .0022 + lane * 1.3;
+      const breath = moving ? .5 + Math.sin(phase) * .5 : 0;
+      const pulse = moving ? this.effects.pulse : 0;
       const x = this.x(lane);
+      const y = this.strike + pressure * 3.1 - glow * (1 - pressure) * 2.5;
       const color = laneColors[lane];
-      const radius = this.targetRadius + 2 * glow;
-      const pool = ctx.createRadialGradient(x, this.strike, 0, x, this.strike, radius * 2.6);
-      pool.addColorStop(0, color + (glow ? "74" : "37"));
-      pool.addColorStop(1, color + "00");
-      ctx.fillStyle = pool;
-      ctx.fillRect(x - radius * 2.6, this.strike - radius * 2.6, radius * 5.2, radius * 5.2);
+      const sprite = this.laneSprites[lane];
+      const radius = this.targetRadius * (1 + breath * .035 + pulse * .035 + pressure * .045);
+      const vertical = 1 - pressure * .23 + glow * (1 - pressure) * .075;
+
+      ctx.globalAlpha = .23 + breath * .08 + pulse * .19 + glow * .31;
+      drawLaneSprite(ctx, sprite.aura, x, this.strike + 5, radius * 1.42, .79);
+      ctx.globalAlpha = 1;
+      drawLaneSprite(ctx, sprite.target, x, y, radius, vertical);
+      ctx.globalAlpha = .18 + glow * .64 + pressure * .15;
       ctx.beginPath();
-      ctx.ellipse(x, this.strike, radius, radius * .56, 0, 0, tau);
-      ctx.fillStyle = glow ? color + "41" : "#111634c7";
-      ctx.fill();
-      ctx.shadowBlur = this.motion.matches ? 0 : 10 + 15 * glow;
-      ctx.shadowColor = color;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.3;
+      const sweep = moving ? phase : .25;
+      ctx.ellipse(x, y - 1, radius * .76, radius * .42 * vertical, 0, sweep, sweep + 1.5);
+      ctx.strokeStyle = glow > .08 ? "#faffff" : color;
+      ctx.lineWidth = 1 + glow;
       ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.beginPath();
-      ctx.ellipse(x, this.strike, radius * .73, radius * .41, 0, 0, tau);
-      ctx.strokeStyle = color + "6e";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(x, this.strike, 2.3, 0, tau);
-      ctx.fillStyle = color;
-      ctx.fill();
+      ctx.globalAlpha = 1;
     }
   }
 
   drawSlide(note, position, time, active) {
     const ctx = this.ctx;
-    const remaining = active ? note.path.filter(point => point.time > time) : note.path.slice(1);
     const head = active ? { time, lane: laneAt(note.path, time) } : note.path[0];
-    const tail = remaining.at(-1);
+    const tail = note.path.at(-1);
     const headY = position(head.time);
     const color = laneColors[note.lane];
 
-    if (tail) {
-      const tailY = position(tail.time);
+    if (tail.time > head.time) {
       const headX = this.x(head.lane, headY);
-      const tailX = this.x(tail.lane, tailY);
-      const gradient = ctx.createLinearGradient(headX, headY, tailX, tailY - 1);
-      gradient.addColorStop(0, color + "cd");
-      gradient.addColorStop(.56, "#d9b9ffb8");
-      gradient.addColorStop(1, laneColors[tail.lane] + "b9");
-
       ctx.beginPath();
       ctx.moveTo(headX, headY);
       let previous = head;
-      for (const point of remaining) {
+      for (const point of note.path) {
+        if (point.time <= head.time) continue;
         const halfway = (previous.time + point.time) / 2;
         const middleY = position(halfway);
         const middleX = this.x((previous.lane + point.lane) / 2, middleY);
@@ -258,21 +262,21 @@ export class GameField {
       }
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = active ? "#fce4ffc5" : gradient;
-      ctx.lineWidth = this.noteRadius * .68;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = this.motion.matches ? 0 : 13;
+      ctx.strokeStyle = color + "35";
+      ctx.lineWidth = this.noteRadius * .91;
       ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#f8edffd4";
+      ctx.strokeStyle = active ? "#d9f9ffbd" : color + "b5";
+      ctx.lineWidth = this.noteRadius * .59;
+      ctx.stroke();
+      ctx.strokeStyle = "#f6fbffd6";
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      this.drawHead(tail.lane, tailY, laneColors[tail.lane], "tail");
+      this.drawHead(tail.lane, position(tail.time), tail.lane, "tail");
     }
-    this.drawHead(head.lane, headY, active ? "#fdf5ff" : color, "slide");
+    this.drawHead(head.lane, headY, note.lane, "slide");
   }
 
-  drawHead(lane, y, color, kind = "tap") {
+  drawHead(lane, y, spriteLane = lane, kind = "tap") {
     if (y < this.spawn - 27 || y > this.strike + 36) return;
     const ctx = this.ctx;
     const depth = clamp((y - this.spawn) / this.travel, 0, 1);
@@ -280,63 +284,26 @@ export class GameField {
     const noteRadius = Math.min(this.noteRadius * (.52 + .48 * depth), laneRadius);
     const radius = noteRadius * (kind === "tail" ? .53 : 1);
     const x = this.x(lane, y);
-    ctx.beginPath();
-    ctx.ellipse(x, y + radius * .15, radius, radius * .57, 0, 0, tau);
-    ctx.fillStyle = color + "8c";
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(x, y, radius, radius * .60, 0, 0, tau);
-    const fill = ctx.createLinearGradient(0, y - radius, 0, y + radius);
-    fill.addColorStop(0, "#ffffff");
-    fill.addColorStop(.46, "#f3fbff");
-    fill.addColorStop(.76, color);
-    fill.addColorStop(1, "#7e9aff");
-    ctx.fillStyle = fill;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = this.motion.matches ? 0 : 16;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = 1.25;
-    ctx.strokeStyle = color;
-    ctx.stroke();
+    drawLaneSprite(ctx, this.laneSprites[spriteLane].note, x, y, radius);
     if (kind === "slide") {
       ctx.beginPath();
-      ctx.ellipse(x, y, radius * .53, radius * .32, 0, 0, tau);
-      ctx.strokeStyle = "#372b66ad";
+      ctx.ellipse(x, y - 1, radius * .40, radius * .24, 0, 0, tau);
+      ctx.strokeStyle = "#342d62";
+      ctx.lineWidth = 1.2;
       ctx.stroke();
     }
   }
 
   drawImpact(impact, age) {
     const ctx = this.ctx;
-    const opacity = (1 - age) ** 2 * impact.power;
-    const radius = this.targetRadius * (1.35 + age * 2.1);
-    const x = this.x(impact.lane);
-    const y = this.strike;
-    const flare = ctx.createRadialGradient(x, y, 0, x, y, radius);
-    flare.addColorStop(0, "#f7ffff");
-    flare.addColorStop(.28, impact.color + "e6");
-    flare.addColorStop(.65, impact.color + "31");
-    flare.addColorStop(1, impact.color + "00");
-    ctx.globalAlpha = opacity * .95;
-    ctx.fillStyle = flare;
-    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-
-    ctx.beginPath();
-    ctx.moveTo(x - radius * 1.25, y);
-    ctx.lineTo(x + radius * 1.25, y);
-    ctx.moveTo(x, y - radius * .78);
-    ctx.lineTo(x, y + radius * .56);
-    ctx.strokeStyle = impact.color;
-    ctx.lineWidth = 1.2 + 2.2 * opacity;
-    ctx.globalAlpha = opacity * .61;
-    ctx.stroke();
+    ctx.globalAlpha = (1 - age) ** 2 * impact.power;
+    const radius = this.targetRadius * (.71 + age * 1.08);
+    drawLaneSprite(ctx, impact.sprite, this.x(impact.lane), this.strike, radius, .83);
   }
 
   drawEffects(now) {
     const ctx = this.ctx;
     ctx.save();
-    ctx.globalCompositeOperation = "screen";
     this.impacts = this.impacts.filter(impact => {
       const age = (now - impact.born) / 425;
       if (age >= 1) return false;
@@ -363,12 +330,10 @@ export class GameField {
       const y = this.strike + particle.dy * age + 205 * age ** 2;
       ctx.globalAlpha = (1 - age / particle.life) ** 1.7;
       ctx.fillStyle = particle.color;
-      ctx.strokeStyle = particle.color;
-      ctx.lineWidth = particle.size * .54;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x - particle.dx * .077, y - (particle.dy + 410 * age) * .077);
-      ctx.stroke();
+      if (particle.size < 1.8) {
+        ctx.fillRect(x, y, particle.size * 1.2, particle.size * 1.2);
+        return true;
+      }
       ctx.beginPath();
       ctx.moveTo(x, y - particle.size * 1.8);
       ctx.lineTo(x + particle.size, y);

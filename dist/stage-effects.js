@@ -32,6 +32,8 @@ export class StageEffects {
   }
 
   reset() {
+    this.wave = 0;
+    this.pulse = 0;
     this.streakBurst = -Infinity;
     this.streakPower = 0;
     this.bloomOpacity = -1;
@@ -78,6 +80,7 @@ export class StageEffects {
 
   draw(time, now) {
     this.wave = 0;
+    this.pulse = 0;
     if (!this.width || this.motion.matches || time < 0) {
       this.setBloom(0, 0);
       return;
@@ -86,6 +89,7 @@ export class StageEffects {
     const accent = latestBefore(this.accents, time, event => event.time);
     const elapsed = accent ? time - accent.time : Infinity;
     const beat = accent && elapsed < .43 ? Math.exp(-elapsed * 8) * accent.strength : 0;
+    this.pulse = beat;
     const climax = latestBefore(this.climaxes, time + 1.45, event => event);
     const age = climax === undefined ? -Infinity : time - climax;
     const opening = age < 0 ? smooth((age + 1.45) / 1.45) : 0;
@@ -98,7 +102,6 @@ export class StageEffects {
 
     const ctx = this.ctx;
     ctx.save();
-    ctx.globalCompositeOperation = "screen";
     this.drawCore(time, beat, opening, energy);
     if (spread > .025) this.drawWings(time, spread, beat);
     if (age >= 0 && age < 2.1) {
@@ -123,7 +126,7 @@ export class StageEffects {
     const radius = Math.min(this.height * .18, this.width * .14);
     ctx.globalAlpha = strength;
     ctx.fillStyle = this.nebula;
-    ctx.fillRect(x - radius * 4, y - radius * 3, radius * 8, radius * 7);
+    ctx.fillRect(x - radius * 3, y - radius * 3, radius * 6, radius * 6);
     ctx.lineCap = "round";
 
     for (let index = 0; index < 5; index++) {
@@ -256,7 +259,6 @@ export class StageEffects {
     const start = Math.max(this.horizon, y - width * 1.9);
     const end = Math.min(this.height, y + width * 1.5);
     ctx.save();
-    ctx.globalCompositeOperation = "screen";
     ctx.globalAlpha = (1 - progress) * .82;
     ctx.lineWidth = 2.5 + progress * 4;
     ctx.lineCap = "round";
@@ -265,8 +267,6 @@ export class StageEffects {
       ctx.moveTo(field.x(lane, start), start);
       ctx.lineTo(field.x(lane, end), end);
       ctx.strokeStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 14;
       ctx.stroke();
     }
     ctx.restore();
