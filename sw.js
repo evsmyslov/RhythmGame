@@ -1,8 +1,8 @@
-const currentCache = "ritm-v9";
+const currentCache = "ritm-v10";
 const files = [
-  "./", "./index.html", "./styles.css?v=9", "./app.js?v=9", "./audio.js?v=9", "./sound.js?v=9", "./game.js?v=9",
-  "./game-field.js?v=9", "./lane-sprites.js?v=9", "./stage-effects.js?v=9", "./chart-worker.js?v=9", "./manifest.webmanifest?v=9",
-  "./assets/cover.webp", "./assets/dusk-lake.webp", "./assets/spectral-bloom-alpha.webp", "./assets/neon-pulse.mp3", "./assets/night-circuit.mp3",
+  "./", "./index.html", "./styles.css?v=10", "./app.js?v=10", "./audio.js?v=10", "./sound.js?v=10", "./game.js?v=10",
+  "./records.js?v=10", "./timing.js?v=10", "./game-field.js?v=10", "./lane-sprites.js?v=10", "./stage-effects.js?v=10", "./chart-worker.js?v=10", "./manifest.webmanifest?v=10",
+  "./assets/circuit-city.webp", "./assets/dusk-lake.webp", "./assets/spectral-bloom-alpha.webp", "./assets/neon-pulse.mp3", "./assets/night-circuit.mp3",
   "./assets/manrope-latin.woff2", "./assets/manrope-cyrillic.woff2",
   "./assets/icon-192.png", "./assets/icon-512.png", "./assets/icon-maskable.png"
 ];

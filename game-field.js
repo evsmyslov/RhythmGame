@@ -1,5 +1,5 @@
-import { StageEffects } from "./stage-effects.js?v=9";
-import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=9";
+import { StageEffects } from "./stage-effects.js?v=10";
+import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=10";
 
 const laneColors = ["#ffca8f", "#c7b1ff", "#82ead1", "#a5ccff"];
 const spectrum = ["#f9ca94", "#f6e4bc", "#cbb7ff", "#82ead1", "#a5ccff"];
@@ -39,7 +39,7 @@ export class GameField {
     this.ctx = canvas.getContext("2d");
     this.motion = matchMedia("(prefers-reduced-motion: reduce)");
     this.effects = new StageEffects(
-      this.ctx, stage.querySelector(".stage-bloom"), stage.querySelector(".stage-light"), this.motion
+      this.ctx, stage.querySelector(".stage-bloom"), stage.querySelector(".stage-light"), stage.querySelector(".stage-shade"), this.motion
     );
     this.reset();
   }
@@ -50,6 +50,8 @@ export class GameField {
     this.ripples = [];
     this.impacts = [];
     this.visibleTaps = [];
+    this.visibleSlides = [];
+    this.visualLoad = 0;
     this.pressDepth = [0, 0, 0, 0];
     this.pressedLanes = 0;
     this.previousFrame = undefined;
@@ -57,15 +59,19 @@ export class GameField {
   }
 
   resize() {
-    const { width, height, left } = this.canvas.getBoundingClientRect();
+    const { width: screenWidth, height: screenHeight, left, top } = this.canvas.getBoundingClientRect();
+    const style = getComputedStyle(this.stage);
+    this.rotated = style.getPropertyValue("--rotated").trim() === "1";
+    const width = this.rotated ? screenHeight : screenWidth;
+    const height = this.rotated ? screenWidth : screenHeight;
     if (!width || !height) return;
     this.width = width;
     this.height = height;
-    this.left = left;
+    this.inputOrigin = this.rotated ? top : left;
     this.farWidth = width * .105;
     this.floorWidth = width * .998;
-    const bottom = Number.parseFloat(getComputedStyle(this.stage).paddingBottom) || 0;
-    const hud = Number.parseFloat(getComputedStyle(this.stage).paddingTop) || 0;
+    const bottom = Number.parseFloat(style.paddingBottom) || 0;
+    const hud = Number.parseFloat(style.paddingTop) || 0;
     this.strike = height - Math.max(59 + bottom, height * .185);
     this.spawn = Math.max(49 + hud, height * .13);
     this.travel = Math.max(1, this.strike - this.spawn);
@@ -103,8 +109,9 @@ export class GameField {
     this.edgeShade.addColorStop(1, "#9bc7ffe3");
   }
 
-  lanePosition(clientX) {
-    return clamp((clientX - this.left - this.hitLeft) / this.hitLaneWidth - .5, -.5, 3.5);
+  lanePosition(clientX, clientY) {
+    const coordinate = this.rotated ? clientY : clientX;
+    return clamp((coordinate - this.inputOrigin - this.hitLeft) / this.hitLaneWidth - .5, -.5, 3.5);
   }
 
   spanAt(y) {
@@ -161,8 +168,30 @@ export class GameField {
     const ctx = this.ctx;
     const { width, height, strike } = this;
     const now = performance.now();
+    const taps = this.visibleTaps;
+    const slides = this.visibleSlides;
+    taps.length = 0;
+    slides.length = 0;
+    let nearby = 0;
+    let nextTransition = activeNote;
+    for (let index = cursor; index < notes.length; index++) {
+      const note = notes[index];
+      const until = note.time - time;
+      if (until > approach + .1) break;
+      if (note.judged) continue;
+      if (until <= .97) nearby += note.path ? 1.6 : 1;
+      if (note.path) {
+        if (!nextTransition && until < 1.15 && note.path.some(point => point.lane !== note.lane)) {
+          nextTransition = note;
+        }
+        slides.push(note);
+      } else taps.push(note);
+    }
+    const load = musicPlaying ? Math.max(activeNote ? .60 : 0, clamp((nearby - 2) / 4, 0, 1)) : 0;
+    this.visualLoad += (load - this.visualLoad) * .15;
+
     ctx.clearRect(0, 0, width, height);
-    this.effects.draw(musicPlaying ? time : -1, now);
+    this.effects.draw(musicPlaying ? time : -1, now, this.visualLoad);
     this.drawHighway();
     this.effects.drawRoad(this);
     this.drawTargets(now, musicPlaying);
@@ -175,15 +204,7 @@ export class GameField {
       const progress = 1 - (timestamp - time) / approach;
       return this.spawn + this.travel * (progress < 0 ? .6 * progress : progress * (.64 + .36 * progress));
     };
-    const taps = this.visibleTaps;
-    taps.length = 0;
-    for (let index = cursor; index < notes.length; index++) {
-      const note = notes[index];
-      if (note.time - time > approach + .1) break;
-      if (note.judged) continue;
-      if (note.path) this.drawSlide(note, position, time, activeNote === note);
-      else taps.push(note);
-    }
+    for (const note of slides) this.drawSlide(note, position, time, activeNote === note, nextTransition === note);
     for (const note of taps) this.drawHead(note.lane, position(note.time));
     ctx.restore();
     this.drawEffects(now);
@@ -256,14 +277,14 @@ export class GameField {
     }
   }
 
-  drawSlide(note, position, time, active) {
+  drawSlide(note, position, time, active, highlighted) {
     const head = active ? { time, lane: laneAt(note.path, time) } : note.path[0];
     const tail = note.path.at(-1);
     const headY = position(head.time);
     if (headY < this.spawn - 27) return;
 
     if (tail.time > head.time) {
-      this.drawSlideRibbon(note.path, position, head, laneColors[note.lane], active);
+      this.drawSlideRibbon(note.path, position, head, laneColors[note.lane], active, highlighted);
       this.drawHead(tail.lane, position(tail.time), note.lane, "tail");
     }
     this.drawHead(head.lane, headY, note.lane, "slide");
@@ -275,7 +296,7 @@ export class GameField {
     return Math.min(this.noteRadius * (.52 + .48 * depth), laneRadius);
   }
 
-  drawSlideRibbon(path, position, head, color, active) {
+  drawSlideRibbon(path, position, head, color, active, highlighted) {
     const ctx = this.ctx;
     const sectionAt = (time, lane) => {
       const y = position(time);
@@ -309,11 +330,11 @@ export class GameField {
       previous = point;
     }
 
-    fillRibbon(ctx, sections, 1, "#11182f");
-    fillRibbon(ctx, sections, .90, active ? "#edffff" : color);
-    fillRibbon(ctx, sections, .72, active ? color + "90" : "#1520435e");
+    fillRibbon(ctx, sections, highlighted ? 1.08 : 1, "#0a1026");
+    fillRibbon(ctx, sections, .92, highlighted ? "#edffff" : color);
+    fillRibbon(ctx, sections, .75, active ? color + "90" : highlighted ? color : "#1520435e");
     for (const { x, y, radius, angle } of arrows) {
-      const size = clamp(radius * .42, 2.8, 8.5);
+      const size = clamp(radius * (highlighted ? .51 : .42), 2.8, highlighted ? 11 : 8.5);
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
@@ -338,7 +359,7 @@ export class GameField {
 
   drawImpact(impact, age) {
     const ctx = this.ctx;
-    ctx.globalAlpha = (1 - age) ** 2 * impact.power;
+    ctx.globalAlpha = (1 - age) ** 2 * impact.power * (1 - this.visualLoad * .48);
     const radius = this.targetRadius * (.71 + age * 1.08);
     drawLaneSprite(ctx, impact.sprite, this.x(impact.lane), this.strike, radius, .83);
   }
@@ -357,7 +378,7 @@ export class GameField {
       if (age < 0) return true;
       if (age >= 1) return false;
       const radius = this.targetRadius + age * this.targetRadius * ripple.size;
-      ctx.globalAlpha = (1 - age) ** 2;
+      ctx.globalAlpha = (1 - age) ** 2 * (1 - this.visualLoad * .45);
       ctx.beginPath();
       ctx.ellipse(this.x(ripple.lane), this.strike, radius, radius * .60, 0, 0, tau);
       ctx.strokeStyle = ripple.color;
@@ -370,7 +391,7 @@ export class GameField {
       if (age >= particle.life) return false;
       const x = this.x(particle.lane) + particle.dx * age;
       const y = this.strike + particle.dy * age + 205 * age ** 2;
-      ctx.globalAlpha = (1 - age / particle.life) ** 1.7;
+      ctx.globalAlpha = (1 - age / particle.life) ** 1.7 * (1 - this.visualLoad * .55);
       ctx.fillStyle = particle.color;
       if (particle.size < 1.8) {
         ctx.fillRect(x, y, particle.size * 1.2, particle.size * 1.2);
