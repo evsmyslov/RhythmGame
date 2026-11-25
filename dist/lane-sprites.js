@@ -41,40 +41,41 @@ function glow(ctx, color, radius, inner) {
   ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
 }
 
-function drawNote(ctx, color) {
-  ctx.save();
-  ctx.scale(1, .75);
-  glow(ctx, color, 53, "#f5fbffa3");
-  ctx.restore();
-
-  const bezel = tint(ctx, -18, 24, [[0, "#e8f1ff"], [.45, color], [1, "#4b5c91"]]);
-  const lens = tint(ctx, -16, 14, [[0, "#ffffff"], [.32, "#f6fbfd"], [.69, color], [1, "#7689ba"]]);
-  ellipse(ctx, 0, 4, 33, 18, "#122348c8", color + "9c", 1.3);
-  ellipse(ctx, 0, 0, 32, 19, bezel, "#eff7ff", 1);
-  ellipse(ctx, 0, -1.5, 26, 14, lens, "#ffffffa8", .8);
-  ellipse(ctx, -10, -8, 10.5, 2.7, "#ffffffec");
-  ellipse(ctx, 12, 7, 6, 1.3, "#ffffff83");
-}
-
-function keyProfile(ctx, top, bottom, back, front, fill, stroke, width) {
+function plate(ctx, width, height, y, fill, outline, lineWidth) {
+  const tip = width * .69;
   ctx.beginPath();
-  ctx.moveTo(-back + 5, top);
-  ctx.lineTo(back - 5, top);
-  ctx.quadraticCurveTo(back, top, back + 2, top + 4);
-  ctx.lineTo(front, bottom - 5);
-  ctx.quadraticCurveTo(front + 1.5, bottom, front - 5, bottom);
-  ctx.lineTo(-front + 5, bottom);
-  ctx.quadraticCurveTo(-front - 1.5, bottom, -front, bottom - 5);
-  ctx.lineTo(-back - 2, top + 4);
-  ctx.quadraticCurveTo(-back, top, -back + 5, top);
+  ctx.moveTo(-tip, y - height);
+  ctx.lineTo(tip, y - height);
+  ctx.quadraticCurveTo(tip + 3, y - height, tip + 6, y - height * .63);
+  ctx.lineTo(width, y - 1);
+  ctx.quadraticCurveTo(width + 1.5, y + 1.5, width - 1.5, y + height * .36);
+  ctx.lineTo(tip + 4, y + height - 1);
+  ctx.quadraticCurveTo(tip + 2, y + height, tip - 1, y + height);
+  ctx.lineTo(-tip + 1, y + height);
+  ctx.quadraticCurveTo(-tip - 2, y + height, -tip - 4, y + height - 1);
+  ctx.lineTo(-width + 1.5, y + height * .36);
+  ctx.quadraticCurveTo(-width - 1.5, y + 1.5, -width, y - 1);
+  ctx.lineTo(-tip - 6, y - height * .63);
+  ctx.quadraticCurveTo(-tip - 3, y - height, -tip, y - height);
   ctx.closePath();
   ctx.fillStyle = fill;
   ctx.fill();
-  if (stroke) {
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = width;
-    ctx.stroke();
-  }
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}
+
+function drawNote(ctx, color) {
+  ctx.save();
+  ctx.scale(1, .52);
+  glow(ctx, color, 53, color + "9c");
+  ctx.restore();
+
+  const lens = tint(ctx, -14, 15, [[0, "#f5fffd"], [.26, color], [.62, color], [1, "#252e49"]]);
+  plate(ctx, 33, 14, 4, "#0b1528", color + "bf", 1.35);
+  plate(ctx, 33, 14, 0, lens, "#ecfff7", 1.4);
+  bar(ctx, -15, -9, 30, 2.4, "#ffffffcf");
+  bar(ctx, -17, 6, 34, 2.3, color + "da");
 }
 
 function bar(ctx, x, y, width, height, color) {
@@ -89,29 +90,48 @@ function bar(ctx, x, y, width, height, color) {
 }
 
 function drawTarget(ctx, color, lit) {
-  const base = tint(ctx, 7, 20, [[0, "#202a49"], [1, "#070b1c"]]);
-  keyProfile(ctx, -10, 20, 25, 33, base, color + "80", 1.2);
-
-  const surface = tint(ctx, -15, 12, lit
-    ? [[0, color + "bf"], [.29, "#2a3857"], [.77, "#32486c"], [1, color]]
-    : [[0, "#3b4b70"], [.31, "#192544"], [.71, "#111a34"], [1, "#3b517a"]]);
-  keyProfile(ctx, -15, 12, 25, 33, surface, lit ? "#f3ffff" : color, lit ? 1.75 : 1.35);
-
-  bar(ctx, -21, -12, 42, 1.4, lit ? "#ffffff" : color + "b3");
-  bar(ctx, -25, 7, 50, 2.4, lit ? "#f8ffff" : color + "e8");
-  bar(ctx, -20, 15, 40, 2.1, lit ? color : color + "54");
-  bar(ctx, -5, -2, 10, 2.4, lit ? "#f8ffff" : color + "84");
+  const face = tint(ctx, -15, 17, lit
+    ? [[0, color + "6a"], [.58, "#183149"], [1, color + "bc"]]
+    : [[0, "#141e2ded"], [.64, "#0b1325f5"], [1, color + "56"]]);
+  plate(ctx, 34, 15, 4, "#0a1125", color + "71", 1.1);
+  plate(ctx, 34, 15, 0, face, lit ? "#f2fffc" : color + "ad", lit ? 1.65 : 1);
+  for (const side of [-1, 1]) {
+    ctx.save();
+    ctx.scale(side, 1);
+    ctx.beginPath();
+    ctx.moveTo(18, -10);
+    ctx.lineTo(24, -10);
+    ctx.lineTo(30, -.4);
+    ctx.lineTo(24, 9);
+    ctx.lineTo(18, 9);
+    ctx.strokeStyle = lit ? "#f5ffff" : color;
+    ctx.lineWidth = lit ? 3.2 : 2.3;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.restore();
+  }
+  bar(ctx, -8, -1.2, 16, 2.4, lit ? "#f2fffc" : color + "95");
+  bar(ctx, -12, 15, 24, 2.3, lit ? color : color + "74");
 }
 
 function drawSlideCap(ctx, color, tail) {
-  const surface = tint(ctx, -16, 16, [[0, "#f5ffff"], [.30, color], [1, "#576889"]]);
-  keyProfile(ctx, -14, 17, 26, 32, "#101a32", color, 2);
-  keyProfile(ctx, -15, 12, 25, 31, surface, "#f0fcff", 1.3);
+  const surface = tint(ctx, -13, 15, [[0, "#f0ffff"], [.31, color], [1, "#34768b"]]);
+  plate(ctx, 32, 13, 2, "#101a32", color, 1.6);
+  plate(ctx, 32, 13, 0, surface, "#ecfff9", 1.35);
   if (tail) {
-    bar(ctx, -11, -4, 22, 8, "#172541");
+    bar(ctx, -11, -2.6, 22, 5.2, "#192b43");
   } else {
-    bar(ctx, -13, -5.5, 26, 2.8, "#172541");
-    bar(ctx, -13, 1, 26, 2.8, "#172541");
+    ctx.strokeStyle = "#192b43";
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(-10, 3);
+    ctx.lineTo(-4, -4);
+    ctx.lineTo(4, -4);
+    ctx.lineTo(10, 3);
+    ctx.stroke();
+    bar(ctx, -8, 5, 16, 2, "#192b43");
   }
 }
 
@@ -134,11 +154,11 @@ function drawSpark(ctx, color) {
 
 export function buildLaneSprites(colors) {
   return colors.map(color => ({
-    note: texture(108, 82, ctx => drawNote(ctx, color)),
+    note: texture(108, 56, ctx => drawNote(ctx, color), 2),
     slide: texture(72, 44, ctx => drawSlideCap(ctx, color, false), 2.5),
     tail: texture(72, 44, ctx => drawSlideCap(ctx, color, true), 2.5),
-    target: texture(74, 46, ctx => drawTarget(ctx, color, false), 2.5),
-    targetLit: texture(74, 46, ctx => drawTarget(ctx, color, true), 2.5),
+    target: texture(74, 44, ctx => drawTarget(ctx, color, false), 2.5),
+    targetLit: texture(74, 44, ctx => drawTarget(ctx, color, true), 2.5),
     aura: texture(148, 98, ctx => {
       ctx.scale(1, .65);
       glow(ctx, color, 74, color);

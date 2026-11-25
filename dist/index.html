@@ -6,17 +6,16 @@
   <meta name="theme-color" content="#0b100f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="РИТМ — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
-  <title>РИТМ — Поймай свой ритм</title>
-  <link rel="manifest" href="manifest.webmanifest?v=10">
-  <link rel="icon" href="assets/icon-192.png">
-  <link rel="apple-touch-icon" href="assets/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=10">
-  <script type="module" src="app.js?v=10"></script>
+  <meta name="description" content="Pulsewake — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
+  <title>Pulsewake — Твой ритм</title>
+  <link rel="manifest" href="manifest.webmanifest?v=11">
+  <link rel="icon" href="assets/icon-192.png?v=11">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=11">
+  <link rel="stylesheet" href="styles.css?v=11">
+  <script type="module" src="app.js?v=11"></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 10v4m4-7v10m5-14v18m5-14v10m4-7v4"/></symbol>
     <symbol id="i-timing" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M9 3v6m6 0v6m-7 0v6" stroke-width="3"/></symbol>
     <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .4c0 1.7-2.5 1.9-2.5 3.6m0 3h.01"/></symbol>
     <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l11-2v13M9 9l11-2"/><ellipse cx="6" cy="18" rx="3" ry="2"/><ellipse cx="17" cy="16" rx="3" ry="2"/></symbol>
@@ -40,8 +39,8 @@
 
   <header class="site-header">
     <div class="header-inner">
-      <a class="brand" href="./" aria-label="РИТМ, главная">
-        <span class="brand-icon"><svg><use href="#i-wave"/></svg></span><span>РИТМ<span class="brand-period">.</span></span>
+      <a class="brand" href="./" aria-label="Pulsewake, главная">
+        <img class="brand-icon" src="assets/icon-192.png?v=11" width="38" height="38" alt=""><span>Pulsewake<span class="brand-period">.</span></span>
       </a>
       <nav class="header-actions" aria-label="Управление и справка">
         <button class="quiet-button lobby-music-button" id="lobby-music-button" aria-label="Музыка в лобби" aria-pressed="false" type="button"><svg><use href="#i-volume-off"/></svg><span>Музыка</span></button>
@@ -136,10 +135,10 @@
         <div class="stage-shade" aria-hidden="true"></div>
         <canvas id="chart-canvas" aria-hidden="true"></canvas>
         <div class="lane-controls" id="lane-controls" aria-label="Игровые дорожки">
-          <button class="lane-control lane-amber" type="button" data-lane="0" aria-label="Дорожка 1, клавиша D"><span>D</span></button>
-          <button class="lane-control lane-purple" type="button" data-lane="1" aria-label="Дорожка 2, клавиша F"><span>F</span></button>
-          <button class="lane-control lane-cyan" type="button" data-lane="2" aria-label="Дорожка 3, клавиша J"><span>J</span></button>
-          <button class="lane-control lane-blue" type="button" data-lane="3" aria-label="Дорожка 4, клавиша K"><span>K</span></button>
+          <button class="lane-control" type="button" data-lane="0" aria-label="Дорожка 1, клавиша D"><span>D</span></button>
+          <button class="lane-control" type="button" data-lane="1" aria-label="Дорожка 2, клавиша F"><span>F</span></button>
+          <button class="lane-control" type="button" data-lane="2" aria-label="Дорожка 3, клавиша J"><span>J</span></button>
+          <button class="lane-control" type="button" data-lane="3" aria-label="Дорожка 4, клавиша K"><span>K</span></button>
         </div>
         <div class="hit-feedback">
           <div class="judgement" id="judgement" aria-hidden="true"></div>

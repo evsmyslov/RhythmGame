@@ -68,7 +68,7 @@ export async function prepareTrack({ file, url, demo, difficulty }, signal, upda
   update(file ? "Читаем файл…" : "Загружаем аудио…");
   const bytes = file ? await readFile(file, video) : await download(demo ? demoURL : url, signal);
   signal.throwIfAborted();
-  const songId = demo ? "neon-pulse" : await fingerprint(bytes);
+  const paletteId = await fingerprint(bytes);
   signal.throwIfAborted();
   update(video ? "Извлекаем звуковую дорожку…" : "Разбираем звук…");
 
@@ -86,15 +86,17 @@ export async function prepareTrack({ file, url, demo, difficulty }, signal, upda
   if (buffer.duration > maxDuration) throw new Error("Выбери трек длительностью до 10 минут.");
 
   update("Генерируем ноты…");
-  const { notes, accents, climaxes } = await scanAudio(buffer, difficulty, signal);
+  const { notes, accents, climaxes, brightness } = await scanAudio(buffer, difficulty, signal);
   if (!notes.length) throw new Error("В этом аудио не нашлось слышимых нот или ударов для уровня.");
   return {
     buffer,
-    songId,
+    songId: demo ? "neon-pulse" : paletteId,
+    paletteId,
     difficulty,
     notes,
     accents,
     climaxes,
+    brightness,
     duration: buffer.duration
   };
 }
@@ -177,7 +179,7 @@ function scanAudio(buffer, difficulty, signal) {
   }
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./chart-worker.js?v=10", import.meta.url));
+    const worker = new Worker(new URL("./chart-worker.js?v=11", import.meta.url));
     const cancel = () => finish(reject, signal.reason);
     function finish(settle, data) {
       worker.terminate();

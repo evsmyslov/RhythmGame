@@ -39,6 +39,8 @@ function makeChart(samples, sampleRate, difficulty) {
   let peakEnergy = 0;
   let peakBody = 0;
   let background = 0;
+  let bassTotal = 0;
+  let trebleTotal = 0;
 
   for (let frame = 0, i = 0; frame < frames; frame++) {
     let bass = 0;
@@ -52,6 +54,8 @@ function makeChart(samples, sampleRate, difficulty) {
       body += (mid - low) ** 2;
       treble += (sample - mid) ** 2;
     }
+    bassTotal += bass;
+    trebleTotal += treble;
     energy[frame] = Math.sqrt((bass + body + treble) / step);
     peakEnergy = Math.max(peakEnergy, energy[frame]);
 
@@ -131,7 +135,9 @@ function makeChart(samples, sampleRate, difficulty) {
 
   accepted.sort((left, right) => left.time - right.time);
   const notes = patternNotes(accepted, settings, maxStrength);
+  const high = Math.sqrt(trebleTotal);
   return {
+    brightness: high / (high + Math.sqrt(bassTotal) || 1),
     notes: addSlides(notes, difficulty, settings, bodyEnergy, peakBody, frameTime),
     ...stageTiming(peaks, maxStrength, energy, frameTime, duration)
   };

@@ -1,5 +1,4 @@
 const tau = Math.PI * 2;
-const colors = ["#83eaff", "#b895ff", "#ffb1dc", "#ffcf9e"];
 const unit = value => Math.max(0, Math.min(1, value));
 const smooth = value => {
   const t = unit(value);
@@ -24,13 +23,15 @@ export class StageEffects {
     this.light = light;
     this.shade = shade;
     this.motion = motion;
-    this.setTiming();
     this.reset();
   }
 
-  setTiming(accents = [], climaxes = []) {
+  setTrack({ accents = [], climaxes = [], duration = 0 }, palette) {
     this.accents = accents;
     this.climaxes = climaxes;
+    this.colors = palette.lanes;
+    this.rayColors = palette.rays;
+    this.raySpeed = .50 + unit(accents.length / Math.max(duration, 1) / 3.4) * .36;
   }
 
   reset() {
@@ -54,20 +55,31 @@ export class StageEffects {
     const center = width / 2;
     const extent = Math.min(width, height) * .55;
     this.nebula = ctx.createRadialGradient(center, horizon, 0, center, horizon, extent);
-    this.nebula.addColorStop(0, "#dcf9ff");
-    this.nebula.addColorStop(.08, "#9fe4ffc0");
-    this.nebula.addColorStop(.32, "#9278ff59");
-    this.nebula.addColorStop(.65, "#d290ff1a");
-    this.nebula.addColorStop(1, "#d290ff00");
+    this.nebula.addColorStop(0, "#e5fff8");
+    this.nebula.addColorStop(.09, this.colors[0] + "ae");
+    this.nebula.addColorStop(.39, this.colors[1] + "62");
+    this.nebula.addColorStop(1, this.colors[2] + "00");
 
-    this.wingGradients = [-1, 1].map(direction => {
-      const gradient = ctx.createLinearGradient(center, horizon, center + direction * width * .52, height * .57);
-      gradient.addColorStop(0, "#ebecffdb");
-      gradient.addColorStop(.21, direction < 0 ? "#998bffe0" : "#8bdcffe4");
-      gradient.addColorStop(.55, direction < 0 ? "#5bcaf9a8" : "#ed93ecac");
-      gradient.addColorStop(.82, "#ffc8a07a");
-      gradient.addColorStop(1, "#ffe0be08");
-      return gradient;
+    const count = width * height < 420000 ? 8 : 12;
+    this.rayGroups = this.rayColors.map((color, group) => {
+      const gradient = ctx.createLinearGradient(0, 0, width, 0);
+      for (const [stop, opacity] of [[0, "10"], [.11, "d4"], [.30, "b0"], [.50, "00"], [.70, "b0"], [.89, "d4"], [1, "10"]]) {
+        gradient.addColorStop(stop, color + opacity);
+      }
+      const lines = Array.from({ length: count }, (_, index) => {
+        const side = (index + group) % 2 ? -1 : 1;
+        const seed = index * 13 + group * 29;
+        return {
+          x: center + side * width * (.026 + (seed % 7) * .011),
+          y: horizon + height * ((seed % 5) - 2) * .018,
+          dx: side * width * (.58 + (seed % 11) * .013),
+          dy: height * ((seed % 29) * .034 - .18),
+          phase: (seed * .618) % 1,
+          speed: this.raySpeed * (.73 + (seed % 17) * .037),
+          length: .12 + (seed % 13) * .012
+        };
+      });
+      return { gradient, lines, thickness: Math.min(2.35, 1 + group * .42 + height * .0007) };
     });
   }
 
@@ -125,7 +137,7 @@ export class StageEffects {
     const ctx = this.ctx;
     ctx.save();
     this.drawCore(time, beat * calm, opening * calm, energy * (1 - load * .50));
-    if (spread > .025) this.drawWings(time, spread, beat);
+    this.drawSpeedLines(time, beat, load);
     if (age >= 0 && age < 2.1 && load < .75) {
       this.drawSurge(age, .50 * calm);
       this.drawPrisms(age, .56 * calm);
@@ -156,7 +168,7 @@ export class StageEffects {
       const turn = (index % 2 ? -1 : 1) * time * (.31 + index * .035) + index * .97;
       ctx.beginPath();
       ctx.ellipse(x, y, r, r * (.47 + index * .06), -.28 + index * .14, turn, turn + 2.4 + energy * 1.3);
-      ctx.strokeStyle = colors[index % colors.length];
+      ctx.strokeStyle = this.colors[index % this.colors.length];
       ctx.lineWidth = 1 + energy * 2.4;
       ctx.globalAlpha = strength * (1 - index * .105);
       ctx.stroke();
@@ -181,41 +193,22 @@ export class StageEffects {
     }
   }
 
-  drawWings(time, spread, beat) {
+  drawSpeedLines(time, beat, load) {
     const ctx = this.ctx;
-    const { width, height, horizon } = this;
-    const center = width / 2;
-    for (let side = 0; side < 2; side++) {
-      const direction = side ? 1 : -1;
-      ctx.strokeStyle = this.wingGradients[side];
-      ctx.fillStyle = this.wingGradients[side];
-      for (let strand = 0; strand < 7; strand++) {
-        const flutter = Math.sin(time * (1.9 + strand * .15) + strand * .85 + side) * height * .035;
-        const reach = width * (.13 + spread * (.405 + strand * .017));
-        const outerX = center + direction * reach;
-        const outerY = height * (.045 + strand * .118) + flutter;
-        const innerY = horizon + height * (.035 + .016 * strand);
-        ctx.beginPath();
-        ctx.moveTo(center + direction * width * .014, innerY);
-        ctx.bezierCurveTo(
-          center + direction * reach * .37, horizon + height * (.28 - .019 * strand),
-          center + direction * reach * .52, outerY - height * (.22 - .011 * strand),
-          outerX, outerY
-        );
-
-        ctx.globalAlpha = spread * (.32 + beat * .18) * (1 - strand * .065);
-        ctx.lineWidth = strand % 3 === 0 ? 2.6 : 1.05;
-        ctx.stroke();
-        if (strand % 2 === 0) {
-          ctx.bezierCurveTo(
-            center + direction * reach * .67, outerY - height * .095,
-            center + direction * reach * .34, horizon + height * .27,
-            center + direction * width * .014, innerY
-          );
-          ctx.globalAlpha *= .28;
-          ctx.fill();
-        }
+    ctx.globalAlpha = (.66 + beat * .32) * (1 - load * .47);
+    ctx.lineCap = "round";
+    for (const { lines, gradient, thickness } of this.rayGroups) {
+      ctx.beginPath();
+      for (const ray of lines) {
+        const progress = (time * ray.speed + ray.phase) % 1;
+        const head = progress ** 1.65;
+        const tail = Math.max(0, progress - ray.length - beat * .09) ** 1.65;
+        ctx.moveTo(ray.x + ray.dx * tail, ray.y + ray.dy * tail);
+        ctx.lineTo(ray.x + ray.dx * head, ray.y + ray.dy * head);
       }
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = thickness + beat * .7;
+      ctx.stroke();
     }
   }
 
@@ -230,7 +223,7 @@ export class StageEffects {
       ctx.ellipse(this.width / 2, this.horizon + progress * this.height * .51, radius, radius * .22, 0, 0, tau);
       ctx.globalAlpha = (1 - progress) ** 1.7 * strength * (.5 - echo * .085);
       ctx.lineWidth = (1 - progress) * 4 + .7;
-      ctx.strokeStyle = colors[echo];
+      ctx.strokeStyle = this.colors[echo];
       ctx.stroke();
     }
   }
@@ -255,7 +248,7 @@ export class StageEffects {
       ctx.lineTo(x + tip * .39 * side, y - tip * .42);
       ctx.closePath();
       ctx.globalAlpha = opacity * .51;
-      ctx.fillStyle = colors[index % colors.length];
+      ctx.fillStyle = this.colors[index % this.colors.length];
       ctx.fill();
       ctx.globalAlpha = opacity * .72;
       ctx.strokeStyle = "#edfbff";
@@ -273,9 +266,9 @@ export class StageEffects {
     const width = 11 + progress * 34;
     const glow = ctx.createLinearGradient(0, y - width, 0, y + width);
     const alpha = Math.round((1 - progress) * 75).toString(16).padStart(2, "0");
-    glow.addColorStop(0, "#a9dbff00");
-    glow.addColorStop(.5, "#a9dbff" + alpha);
-    glow.addColorStop(1, "#a9dbff00");
+    glow.addColorStop(0, this.colors[0] + "00");
+    glow.addColorStop(.5, this.colors[0] + alpha);
+    glow.addColorStop(1, this.colors[0] + "00");
     ctx.fillStyle = glow;
     ctx.fillRect(this.width / 2 - span, y - width, span * 2, width * 2);
     const start = Math.max(this.horizon, y - width * 1.9);
@@ -284,7 +277,7 @@ export class StageEffects {
     ctx.globalAlpha = (1 - progress) * .82;
     ctx.lineWidth = 2.5 + progress * 4;
     ctx.lineCap = "round";
-    for (const [lane, color] of [[-.5, colors[0]], [3.5, colors[2]]]) {
+    for (const [lane, color] of [[-.5, this.colors[0]], [3.5, this.colors[2]]]) {
       ctx.beginPath();
       ctx.moveTo(field.x(lane, start), start);
       ctx.lineTo(field.x(lane, end), end);

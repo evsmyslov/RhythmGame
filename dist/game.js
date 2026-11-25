@@ -1,8 +1,8 @@
-import { difficulties } from "./audio.js?v=10";
-import { GameField, laneAt } from "./game-field.js?v=10";
-import { HitSounds } from "./sound.js?v=10";
-import { audibleTime, timingOffset } from "./timing.js?v=10";
-import { finishRecord, readBest } from "./records.js?v=10";
+import { difficulties } from "./audio.js?v=11";
+import { GameField, laneAt } from "./game-field.js?v=11";
+import { HitSounds } from "./sound.js?v=11";
+import { audibleTime, timingOffset } from "./timing.js?v=11";
+import { finishRecord, readBest } from "./records.js?v=11";
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
 const formatNumber = new Intl.NumberFormat("ru");
 const percent = value => Math.round(value * 100) + "%";
@@ -80,8 +80,9 @@ export class RhythmGame {
   open(track) {
     this.track = track;
     this.settings = difficulties[track.difficulty];
-    this.field.effects.setTiming(track.accents, track.climaxes);
-    item("game").dataset.theme = track.difficulty;
+    this.field.setTrack(track);
+    item("game").style.setProperty("--track-accent", this.field.palette.accent);
+    item("game").style.setProperty("--track-secondary", this.field.palette.lanes[2]);
     this.slideCount = track.notes.filter(note => note.path).length;
     this.reset();
     this.showReady(false);
@@ -397,7 +398,7 @@ export class RhythmGame {
     else this.good++;
     const points = perfect ? 1000 : 650;
     this.score += (note.path ? Math.round(points * 1.45) : points) + Math.min((this.combo - 1) * 12, 360);
-    this.field.illuminate(lane, note.path ? 26 : perfect ? 21 : 10);
+    this.field.illuminate(lane, note.path ? 25 : perfect ? 19 : 10);
     if (this.combo % 10 === 0) this.field.celebrate(lane, this.combo);
     this.feedback(perfect ? "Идеально" : "Хорошо", perfect ? "#ffa9dc" : "#9decf5",
       perfect ? "" : this.timingText(delta));
