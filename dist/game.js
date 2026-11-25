@@ -1,5 +1,5 @@
-import { difficulties } from "./audio.js?v=2";
-import { GameField, laneAt } from "./game-field.js?v=2";
+import { difficulties } from "./audio.js?v=3";
+import { GameField, laneAt } from "./game-field.js?v=3";
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
 const formatNumber = new Intl.NumberFormat("ru");
 const percent = value => Math.round(value * 100) + "%";
@@ -85,6 +85,7 @@ export class RhythmGame {
   close() {
     this.stopAudio();
     this.phase = "idle";
+    this.comboAnimation?.cancel();
     this.clearInputs();
     this.track = null;
     this.notes = [];
@@ -115,6 +116,7 @@ export class RhythmGame {
     item("pause-button").disabled = true;
     item("countdown").hidden = true;
     item("stage-overlay").hidden = false;
+    item("combo").hidden = true;
     item("results-screen").hidden = true;
     item("ready-screen").hidden = false;
     item("play-error").hidden = true;
@@ -224,6 +226,7 @@ export class RhythmGame {
       if (this.phase === "countdown") {
         this.phase = "playing";
         item("countdown").hidden = true;
+        item("combo").hidden = this.combo < 2;
       }
       this.updateSlide(time);
       this.markMisses(time);
@@ -361,6 +364,7 @@ export class RhythmGame {
     const points = perfect ? 1000 : 650;
     this.score += (note.path ? Math.round(points * 1.45) : points) + Math.min((this.combo - 1) * 12, 360);
     this.field.illuminate(lane, note.path ? 19 : perfect ? 13 : 7);
+    if (this.combo % 10 === 0) this.field.celebrate(lane);
     this.feedback(perfect ? "Идеально" : "Хорошо", perfect ? "#ffa9dc" : "#9decf5");
     this.updateScores();
   }
@@ -397,8 +401,41 @@ export class RhythmGame {
 
   updateScores() {
     item("score").textContent = formatNumber.format(this.score);
-    item("combo").textContent = formatNumber.format(this.combo);
+    this.updateCombo();
     item("accuracy").textContent = this.accuracy();
+  }
+
+  updateCombo() {
+    const previous = this.displayedCombo ?? 0;
+    const label = item("combo");
+    label.textContent = formatNumber.format(this.combo);
+    label.setAttribute("aria-label", "Комбо " + this.combo);
+    label.hidden = this.combo < 2;
+    if (this.combo === previous) return;
+    this.displayedCombo = this.combo;
+
+    const scale = 1 + Math.min(.33, Math.log2(1 + this.combo / 7) * .105);
+    const stable = "scale(" + scale + ")";
+    label.style.setProperty("--combo-scale", scale);
+    const increasing = this.combo > previous;
+    const milestone = increasing && this.combo % 10 === 0;
+    if (increasing && !milestone && this.comboMilestone && this.comboAnimation?.playState === "running") return;
+    this.comboAnimation?.cancel();
+    if (!increasing || this.field.motion.matches || !label.animate) return;
+
+    this.comboMilestone = milestone;
+    const frames = milestone ? [
+      { transform: stable },
+      { transform: "translateX(-3px) rotate(-6deg) scale(" + (scale + .22) + ")", color: "#fff8ce", offset: .2 },
+      { transform: "translateX(3px) rotate(5deg) scale(" + (scale + .14) + ")", color: "#d5fdff", offset: .42 },
+      { transform: "translateX(-1.5px) rotate(-3deg) scale(" + (scale + .07) + ")", color: "#efc5ff", offset: .62 },
+      { transform: stable }
+    ] : [
+      { transform: stable },
+      { transform: "scale(" + (scale + .075) + ")", offset: .3 },
+      { transform: stable }
+    ];
+    this.comboAnimation = label.animate(frames, { duration: milestone ? 520 : 160, easing: "ease-out" });
   }
 
   updateProgress(time) {
@@ -415,6 +452,7 @@ export class RhythmGame {
   finish() {
     this.stopAudio();
     this.phase = "finished";
+    item("combo").hidden = true;
     this.clearInputs();
     this.markMisses(this.track.duration, true);
     this.updateProgress(this.track.duration);

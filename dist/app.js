@@ -1,5 +1,5 @@
-import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=2";
-import { RhythmGame } from "./game.js?v=2";
+import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=3";
+import { RhythmGame } from "./game.js?v=3";
 
 const item = id => document.getElementById(id);
 const form = item("setup");
@@ -141,7 +141,7 @@ async function generate(demo) {
   const source = trackURL.value.trim();
   const reference = streamingReference(source);
   if (!demo && reference && !file) {
-    setError("Для этой ссылки добавь аудиофайл трека.");
+    setError("Для этой ссылки выбери аудио или видео с этой песней.");
     fileButton.focus();
     return;
   }

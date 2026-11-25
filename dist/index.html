@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="РИТМ — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
   <title>РИТМ — Поймай свой ритм</title>
-  <link rel="manifest" href="manifest.webmanifest?v=2">
+  <link rel="manifest" href="manifest.webmanifest?v=3">
   <link rel="icon" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=2">
-  <script type="module" src="app.js?v=2"></script>
+  <link rel="stylesheet" href="styles.css?v=3">
+  <script type="module" src="app.js?v=3"></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -70,11 +70,11 @@
         </div>
         <div class="streaming-source" id="streaming-source" hidden>
           <a id="streaming-link" target="_blank" rel="noopener noreferrer"><svg><use href="#i-link"/></svg><span></span></a>
-          <p id="streaming-hint">Добавь аудиофайл этой песни, чтобы сгенерировать ноты.</p>
+          <p id="streaming-hint">Выбери аудио или видео с этим треком, чтобы сгенерировать ноты.</p>
         </div>
         <div class="source-row">
-          <input type="file" id="track-file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.opus,.flac,.aac,.webm" hidden>
-          <button class="file-button" id="file-button" type="button"><svg><use href="#i-upload"/></svg>Загрузить аудиофайл</button>
+          <input type="file" id="track-file" accept="audio/*,video/mp4,video/quicktime,video/webm,.mp3,.m4a,.wav,.ogg,.opus,.flac,.aac,.mp4,.m4v,.mov,.webm" hidden>
+          <button class="file-button" id="file-button" type="button"><svg><use href="#i-upload"/></svg>Выбрать аудио или видео</button>
           <div id="file-tag" class="file-tag" hidden><span id="file-name"></span><button class="icon-button" id="remove-file" type="button" aria-label="Убрать файл"><svg><use href="#i-close"/></svg></button></div>
         </div>
         <p class="field-error" id="source-error" role="alert" hidden></p>
@@ -111,9 +111,8 @@
           <div class="preview-lane lane-purple"><span style="--note-y: 19%"></span></div>
           <div class="preview-lane lane-cyan"><span style="--note-y: 50%"></span></div>
           <div class="preview-lane lane-blue"><span style="--note-y: 30%"></span></div>
-          <div class="preview-hit"></div>
         </div>
-        <p>Нажимай по линии. Длинные ноты удерживай, а на изгибах веди палец в соседнюю дорожку.</p>
+        <p>Нажимай, когда нота совпадает с мишенью. Длинные ноты удерживай и веди палец по изгибам.</p>
         <button class="secondary-button demo-button" id="demo-button" type="button"><svg><use href="#i-play"/></svg>Попробовать демо</button>
       </aside>
     </div>
@@ -126,7 +125,6 @@
       <button class="quiet-button" id="back-button" aria-label="К песням" title="К песням" type="button"><svg><use href="#i-close"/></svg></button>
       <div class="scorebar">
         <div><span>Счёт</span><strong id="score">0</strong></div>
-        <div><span>Комбо</span><strong id="combo">0</strong></div>
         <div><span>Точность</span><strong id="accuracy">—</strong></div>
       </div>
       <div class="game-actions">
@@ -144,14 +142,17 @@
         <button class="lane-control lane-cyan" type="button" data-lane="2" aria-label="Дорожка 3, клавиша J"><span>J</span></button>
         <button class="lane-control lane-blue" type="button" data-lane="3" aria-label="Дорожка 4, клавиша K"><span>K</span></button>
       </div>
-      <div class="judgement" id="judgement" aria-hidden="true"></div>
+      <div class="hit-feedback">
+        <div class="judgement" id="judgement" aria-hidden="true"></div>
+        <strong id="combo" hidden>0</strong>
+      </div>
       <div class="countdown" id="countdown" aria-hidden="true" hidden></div>
       <div class="stage-overlay" id="stage-overlay">
         <div class="overlay-content" id="ready-screen">
           <span class="overlay-icon"><svg><use href="#i-music"/></svg></span>
           <h1 id="ready-title">Уровень готов</h1>
           <p id="ready-detail"></p>
-          <p class="ready-hint" id="ready-hint"><span class="hint-touch">Веди длинные ноты по изгибам, удерживая палец.</span><span class="hint-keyboard">Дорожки — D, F, J, K. Для слайда удерживай клавишу и переходи на соседнюю.</span></p>
+          <p class="ready-hint" id="ready-hint"><span class="hint-touch">Веди длинные ноты по изгибам, удерживая палец.</span><span class="hint-keyboard">Дорожки — D, F, J, K. Нажимай по мишеням и удерживай клавиши для слайдов.</span></p>
           <p class="play-error" id="play-error" role="alert" hidden></p>
           <button class="primary-button" id="start-button" type="button"><svg><use href="#i-play"/></svg><span>Начать игру</span></button>
         </div>
@@ -174,9 +175,9 @@
   <dialog class="info-dialog" id="help-dialog" aria-labelledby="help-title">
     <div class="dialog-heading"><h2 id="help-title">Как играть</h2><form method="dialog"><button class="icon-button" aria-label="Закрыть"><svg><use href="#i-close"/></svg></button></form></div>
     <ol>
-      <li>Вставь прямую ссылку на аудио или выбери файл с телефона. Ссылку YouTube или Spotify можно добавить вместе с аудиофайлом.</li>
+      <li>Вставь прямую ссылку на аудио или выбери аудио либо видео с телефона. Ссылку YouTube или Spotify можно добавить вместе с файлом.</li>
       <li>Выбери от одной до трёх звёзд. На сложных уровнях ноты летят быстрее и встречаются чаще.</li>
-      <li>Нажимай на дорожки по линии. Удерживай длинные ноты до конца и веди палец за изгибами. На клавиатуре используй D, F, J и K.</li>
+      <li>Нажимай, когда круглая нота совпадает с мишенью. Удерживай длинные ноты до конца и веди палец за изгибами. На клавиатуре используй D, F, J и K.</li>
     </ol>
     <p>Можешь повернуть телефон горизонтально и потренироваться в демо.</p>
     <form method="dialog"><button class="primary-button">Понятно</button></form>
