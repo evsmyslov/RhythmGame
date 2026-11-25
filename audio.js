@@ -1,4 +1,5 @@
 const maxBytes = 60 * 1024 * 1024;
+const maxVideoBytes = 180 * 1024 * 1024;
 const maxDuration = 10 * 60;
 const demoURL = new URL("./assets/neon-pulse.mp3", import.meta.url);
 
@@ -61,17 +62,20 @@ export function parseTrackLink(value) {
 }
 
 export async function prepareTrack({ file, url, demo, difficulty }, signal, update) {
-  update(file ? "Читаем аудиофайл…" : "Загружаем аудио…");
-  const bytes = file ? await readFile(file) : await download(demo ? demoURL : url, signal);
+  const video = file && (file.type.startsWith("video/") || (!file.type.startsWith("audio/") && /\.(mp4|mov|m4v|webm)$/i.test(file.name)));
+  update(file ? "Читаем файл…" : "Загружаем аудио…");
+  const bytes = file ? await readFile(file, video) : await download(demo ? demoURL : url, signal);
   signal.throwIfAborted();
-  update("Разбираем звук…");
+  update(video ? "Извлекаем звуковую дорожку…" : "Разбираем звук…");
 
   let buffer;
   try {
     const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     buffer = await new Offline(1, 1, 32000).decodeAudioData(bytes);
   } catch {
-    throw new Error("Не удалось прочитать аудио. Попробуй файл в формате MP3, M4A или WAV.");
+    throw new Error(video
+      ? "Не удалось прочитать звук из видео. Попробуй MP4 со звуком AAC или аудиофайл MP3."
+      : "Не удалось прочитать аудио. Попробуй файл в формате MP3, M4A или WAV.");
   }
   signal.throwIfAborted();
   if (buffer.duration < 1) throw new Error("Выбери аудио длительностью хотя бы одну секунду.");
@@ -88,8 +92,10 @@ export async function prepareTrack({ file, url, demo, difficulty }, signal, upda
   };
 }
 
-function readFile(file) {
-  if (file.size > maxBytes) throw new Error("Выбери аудиофайл размером до 60 МБ.");
+function readFile(file, video) {
+  if (file.size > (video ? maxVideoBytes : maxBytes)) {
+    throw new Error(video ? "Выбери видео размером до 180 МБ." : "Выбери аудиофайл размером до 60 МБ.");
+  }
   return file.arrayBuffer();
 }
 
@@ -151,7 +157,7 @@ function scanAudio(buffer, difficulty, signal) {
   }
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./chart-worker.js?v=2", import.meta.url));
+    const worker = new Worker(new URL("./chart-worker.js?v=3", import.meta.url));
     const cancel = () => finish(reject, signal.reason);
     function finish(settle, data) {
       worker.terminate();

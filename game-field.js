@@ -1,4 +1,7 @@
-export const laneColors = ["#ff79c9", "#bc95ff", "#74eaf8", "#8eacff"];
+const laneColors = ["#ff9bcb", "#c6b0ff", "#8bf0eb", "#a5c8ff"];
+const spectrum = ["#ff9bcb", "#ffd2ab", "#cbb7ff", "#8bf0eb", "#a5c8ff"];
+const tau = Math.PI * 2;
+const clamp = (number, min, max) => Math.max(min, Math.min(max, number));
 
 export function laneAt(path, time) {
   for (let i = 1; i < path.length; i++) {
@@ -8,8 +11,6 @@ export function laneAt(path, time) {
   }
   return path.at(-1).lane;
 }
-
-const clamp = (number, min, max) => Math.max(min, Math.min(max, number));
 
 export class GameField {
   constructor(canvas, stage) {
@@ -23,6 +24,7 @@ export class GameField {
   reset() {
     this.flashes = [-Infinity, -Infinity, -Infinity, -Infinity];
     this.sparks = [];
+    this.ripples = [];
   }
 
   resize() {
@@ -31,29 +33,56 @@ export class GameField {
     this.width = width;
     this.height = height;
     this.left = left;
-    this.laneWidth = width / 4;
+    this.farWidth = width * .105;
+    this.floorWidth = width * .998;
     const bottom = Number.parseFloat(getComputedStyle(this.stage).paddingBottom) || 0;
-    this.strike = height - Math.max(64 + bottom, height * .22);
-    this.spawn = Math.max(51, Math.min(95, height * .145));
+    const hud = Number.parseFloat(getComputedStyle(this.stage).paddingTop) || 0;
+    this.strike = height - Math.max(59 + bottom, height * .185);
+    this.spawn = Math.max(49 + hud, height * .13);
     this.travel = Math.max(1, this.strike - this.spawn);
-    this.stroke = Math.min(this.laneWidth * .67, 150);
-    this.noteHeight = clamp(this.height * .022, 10, 16);
+    this.hitWidth = this.spanAt(this.strike);
+    this.hitLaneWidth = this.hitWidth / 4;
+    this.hitLeft = (width - this.hitWidth) / 2;
+    this.noteRadius = clamp(Math.min(this.hitLaneWidth * .23, height * .049), 12, 27);
+    this.targetRadius = this.noteRadius + 5;
+    this.stage.style.setProperty("--hit-inset", this.hitLeft + "px");
     this.stage.style.setProperty("--strike-depth", (height - this.strike) + "px");
-    const pixels = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = Math.round(width * pixels);
-    this.canvas.height = Math.round(height * pixels);
-    this.ctx.setTransform(pixels, 0, 0, pixels, 0, 0);
+    this.stage.style.setProperty("--target-height", this.targetRadius * .56 + "px");
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.canvas.width = Math.round(width * dpr);
+    this.canvas.height = Math.round(height * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.laneShades = laneColors.map(color => {
-      const shade = this.ctx.createLinearGradient(0, this.spawn, 0, this.strike);
-      shade.addColorStop(0, color + "06");
-      shade.addColorStop(.7, color + "13");
-      shade.addColorStop(1, color + "27");
+      const shade = this.ctx.createLinearGradient(0, this.spawn, 0, height);
+      shade.addColorStop(0, color + "0c");
+      shade.addColorStop(.7, color + "18");
+      shade.addColorStop(1, color + "35");
       return shade;
     });
+    this.runwayShade = this.ctx.createLinearGradient(0, this.spawn, 0, height);
+    this.runwayShade.addColorStop(0, "#0b11224d");
+    this.runwayShade.addColorStop(.62, "#0b1028dc");
+    this.runwayShade.addColorStop(.86, "#1a1e5deb");
+    this.runwayShade.addColorStop(1, "#2b1863d9");
+    this.edgeShade = this.ctx.createLinearGradient(0, this.spawn, 0, height);
+    this.edgeShade.addColorStop(0, "#f6ecff0c");
+    this.edgeShade.addColorStop(.34, "#bacdf391");
+    this.edgeShade.addColorStop(.82, "#d9eafff0");
+    this.edgeShade.addColorStop(1, "#9bc7ffe3");
   }
 
   lanePosition(clientX) {
-    return clamp((clientX - this.left) / this.laneWidth - .5, -.5, 3.5);
+    return clamp((clientX - this.left - this.hitLeft) / this.hitLaneWidth - .5, -.5, 3.5);
+  }
+
+  spanAt(y) {
+    const depth = clamp((y - this.spawn) / Math.max(1, this.height - this.spawn), 0, 1);
+    return this.farWidth + (this.floorWidth - this.farWidth) * depth;
+  }
+
+  x(lane, y = this.strike) {
+    return this.width / 2 + (lane - 1.5) * this.spanAt(y) / 4;
   }
 
   illuminate(lane, power = 0) {
@@ -63,130 +92,234 @@ export class GameField {
     this.flashes[nearest] = now;
     if (!power || this.motion.matches) return;
 
-    for (let i = 0; i < power; i++) {
-      const angle = -Math.PI + Math.random() * Math.PI;
-      const velocity = 55 + 160 * Math.random();
-      this.sparks.push({
-        lane, color: laneColors[nearest], born: now,
-        dx: Math.cos(angle) * velocity,
-        dy: Math.sin(angle) * velocity - 12,
-        size: 1 + Math.random() * 2.6,
-        life: .23 + Math.random() * .29
-      });
-    }
-    if (this.sparks.length > 120) this.sparks.splice(0, this.sparks.length - 120);
+    this.ripples.push({ lane, born: now, color: laneColors[nearest], size: 1.2 + power / 25 });
+    this.scatter(lane, power, now, false);
   }
 
-  x(lane) {
-    return (lane + .5) * this.laneWidth;
+  celebrate(lane) {
+    if (!this.width || this.motion.matches) return;
+    const now = performance.now();
+    for (let i = 0; i < laneColors.length; i++) {
+      const delay = Math.abs(i - lane) * 52;
+      this.ripples.push({ lane: i, born: now + delay, color: spectrum[i], size: 2.35 });
+    }
+    this.scatter(lane, 34, now, true);
+  }
+
+  scatter(lane, count, now, celebration) {
+    const color = laneColors[clamp(Math.round(lane), 0, 3)];
+    for (let i = 0; i < count; i++) {
+      const angle = -Math.PI + Math.random() * Math.PI;
+      const speed = (celebration ? 120 : 58) + Math.random() * (celebration ? 235 : 152);
+      this.sparks.push({
+        lane, color: celebration || i % 3 === 0 ? spectrum[i % spectrum.length] : color,
+        born: now, dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed - 12,
+        size: 1.1 + Math.random() * 2.4, life: .25 + Math.random() * (celebration ? .61 : .30)
+      });
+    }
+    if (this.sparks.length > 150) this.sparks.splice(0, this.sparks.length - 150);
   }
 
   draw(notes, cursor, time, approach, activeNote) {
     if (!this.width) return;
     const ctx = this.ctx;
-    const { width, height, strike, laneWidth } = this;
+    const { width, height, strike } = this;
     const now = performance.now();
     ctx.clearRect(0, 0, width, height);
-
-    for (let lane = 0; lane < 4; lane++) {
-      const left = lane * laneWidth;
-      ctx.fillStyle = this.laneShades[lane];
-      ctx.fillRect(left, this.spawn, laneWidth, strike - this.spawn);
-      if (lane > 0) {
-        ctx.fillStyle = "#e2cdff25";
-        ctx.fillRect(left, this.spawn, 1, height - this.spawn);
-      }
-      const flash = Math.max(0, 1 - (now - this.flashes[lane]) / 230);
-      if (flash) {
-        ctx.globalAlpha = flash * (this.motion.matches ? .16 : .28);
-        ctx.fillStyle = laneColors[lane];
-        ctx.fillRect(left, strike - 38, laneWidth, 38);
-        ctx.globalAlpha = 1;
-      }
-    }
+    this.drawHighway();
+    this.drawTargets(now);
 
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, this.spawn - 5, width, strike - this.spawn + 36);
+    ctx.rect(0, this.spawn - 4, width, strike - this.spawn + this.targetRadius * 2);
     ctx.clip();
-
+    const position = timestamp => {
+      const progress = 1 - (timestamp - time) / approach;
+      return this.spawn + this.travel * (progress < 0 ? .6 * progress : progress * (.64 + .36 * progress));
+    };
     for (let index = cursor; index < notes.length; index++) {
       const note = notes[index];
       if (note.time - time > approach + .1) break;
       if (note.judged) continue;
-      const position = timestamp => strike - (timestamp - time) / approach * this.travel;
       if (note.path) this.drawSlide(note, position, time, activeNote === note);
-      else this.drawHead(this.x(note.lane), position(note.time), laneColors[note.lane]);
+      else this.drawHead(note.lane, position(note.time), laneColors[note.lane]);
     }
     ctx.restore();
+    this.drawEffects(now);
+  }
 
-    ctx.fillStyle = "#f5dcff";
-    ctx.shadowBlur = this.motion.matches ? 0 : 12;
-    ctx.shadowColor = "#c183ff";
-    ctx.fillRect(0, strike - 1, width, 2);
-    ctx.shadowBlur = 0;
-    this.drawSparks(now);
+  drawHighway() {
+    const ctx = this.ctx;
+    const { spawn, height } = this;
+    ctx.beginPath();
+    ctx.moveTo(this.x(-.5, spawn), spawn);
+    ctx.lineTo(this.x(3.5, spawn), spawn);
+    ctx.lineTo(this.x(3.5, height), height);
+    ctx.lineTo(this.x(-.5, height), height);
+    ctx.closePath();
+    ctx.fillStyle = this.runwayShade;
+    ctx.fill();
+
+    for (let lane = 0; lane < 4; lane++) {
+      ctx.beginPath();
+      ctx.moveTo(this.x(lane - .5, spawn), spawn);
+      ctx.lineTo(this.x(lane + .5, spawn), spawn);
+      ctx.lineTo(this.x(lane + .5, height), height);
+      ctx.lineTo(this.x(lane - .5, height), height);
+      ctx.closePath();
+      ctx.fillStyle = this.laneShades[lane];
+      ctx.fill();
+    }
+    for (let divider = 0; divider <= 4; divider++) {
+      ctx.beginPath();
+      ctx.moveTo(this.x(divider - .5, spawn), spawn);
+      ctx.lineTo(this.x(divider - .5, height), height);
+      const edge = divider === 0 || divider === 4;
+      ctx.strokeStyle = edge ? this.edgeShade : "#e4ddff27";
+      ctx.lineWidth = edge ? clamp(this.width * .0033, 1.6, 5.5) : 1;
+      ctx.stroke();
+    }
+  }
+
+  drawTargets(now) {
+    const ctx = this.ctx;
+    for (let lane = 0; lane < 4; lane++) {
+      const glow = Math.max(0, 1 - (now - this.flashes[lane]) / 240);
+      const x = this.x(lane);
+      const color = laneColors[lane];
+      const radius = this.targetRadius + 2 * glow;
+      const pool = ctx.createRadialGradient(x, this.strike, 0, x, this.strike, radius * 2.6);
+      pool.addColorStop(0, color + (glow ? "74" : "37"));
+      pool.addColorStop(1, color + "00");
+      ctx.fillStyle = pool;
+      ctx.fillRect(x - radius * 2.6, this.strike - radius * 2.6, radius * 5.2, radius * 5.2);
+      ctx.beginPath();
+      ctx.ellipse(x, this.strike, radius, radius * .56, 0, 0, tau);
+      ctx.fillStyle = glow ? color + "41" : "#111634c7";
+      ctx.fill();
+      ctx.shadowBlur = this.motion.matches ? 0 : 10 + 15 * glow;
+      ctx.shadowColor = color;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.ellipse(x, this.strike, radius * .73, radius * .41, 0, 0, tau);
+      ctx.strokeStyle = color + "6e";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, this.strike, 1.8, 0, tau);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
   }
 
   drawSlide(note, position, time, active) {
     const ctx = this.ctx;
-    const remaining = active ? note.path.filter(point => point.time > time) : note.path;
-    const head = active ? { time, lane: laneAt(note.path, time) } : remaining[0];
-    const tail = remaining.at(-1) ?? head;
-    const headX = this.x(head.lane);
+    const remaining = active ? note.path.filter(point => point.time > time) : note.path.slice(1);
+    const head = active ? { time, lane: laneAt(note.path, time) } : note.path[0];
+    const tail = remaining.at(-1);
     const headY = position(head.time);
     const color = laneColors[note.lane];
-    const gradient = ctx.createLinearGradient(headX, headY, this.x(tail.lane), position(tail.time) - 1);
-    gradient.addColorStop(0, color + "88");
-    gradient.addColorStop(1, laneColors[tail.lane] + "99");
-    ctx.beginPath();
-    ctx.moveTo(headX, headY);
-    for (const point of active ? remaining : remaining.slice(1)) ctx.lineTo(this.x(point.lane), position(point.time));
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = active ? "#fce9ffbc" : gradient;
-    ctx.lineWidth = Math.min(this.stroke * .45, 54);
-    ctx.shadowColor = color;
-    ctx.shadowBlur = this.motion.matches ? 0 : 17;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = "#f8ddffbc";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
 
-    if (tail !== head) {
-      ctx.fillStyle = laneColors[tail.lane];
+    if (tail) {
+      const tailY = position(tail.time);
+      const headX = this.x(head.lane, headY);
+      const tailX = this.x(tail.lane, tailY);
+      const gradient = ctx.createLinearGradient(headX, headY, tailX, tailY - 1);
+      gradient.addColorStop(0, color + "cd");
+      gradient.addColorStop(.56, "#d9b9ffb8");
+      gradient.addColorStop(1, laneColors[tail.lane] + "b9");
+
       ctx.beginPath();
-      ctx.arc(this.x(tail.lane), position(tail.time), Math.max(4, this.noteHeight * .46), 0, 2 * Math.PI);
-      ctx.fill();
+      ctx.moveTo(headX, headY);
+      let previous = head;
+      for (const point of remaining) {
+        const halfway = (previous.time + point.time) / 2;
+        const middleY = position(halfway);
+        const middleX = this.x((previous.lane + point.lane) / 2, middleY);
+        const endY = position(point.time);
+        ctx.quadraticCurveTo(middleX, middleY, this.x(point.lane, endY), endY);
+        previous = point;
+      }
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = active ? "#fce4ffc5" : gradient;
+      ctx.lineWidth = this.noteRadius * .68;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = this.motion.matches ? 0 : 13;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "#f8edffd4";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      this.drawHead(tail.lane, tailY, laneColors[tail.lane], "tail");
     }
-    this.drawHead(headX, headY, active ? "#fff2fb" : color, true);
+    this.drawHead(head.lane, headY, active ? "#fdf5ff" : color, "slide");
   }
 
-  drawHead(x, y, color, slide = false) {
-    if (y < this.spawn - 25 || y > this.strike + 37) return;
+  drawHead(lane, y, color, kind = "tap") {
+    if (y < this.spawn - 27 || y > this.strike + 36) return;
     const ctx = this.ctx;
-    const { stroke, noteHeight } = this;
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = this.motion.matches ? 0 : 15;
+    const depth = clamp((y - this.spawn) / this.travel, 0, 1);
+    const radius = this.noteRadius * (.45 + .55 * depth) * (kind === "tail" ? .53 : 1);
+    const x = this.x(lane, y);
     ctx.beginPath();
-    ctx.roundRect(x - stroke / 2, y - noteHeight / 2, stroke, noteHeight, noteHeight / 3);
+    ctx.ellipse(x, y + radius * .15, radius, radius * .57, 0, 0, tau);
+    ctx.fillStyle = color + "8c";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x, y, radius, radius * .60, 0, 0, tau);
+    const fill = ctx.createLinearGradient(0, y - radius, 0, y + radius);
+    fill.addColorStop(0, "#ffffff");
+    fill.addColorStop(.46, "#f3fbff");
+    fill.addColorStop(.76, color);
+    fill.addColorStop(1, "#7e9aff");
+    ctx.fillStyle = fill;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = this.motion.matches ? 0 : 16;
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = slide ? "#190c37b3" : "#fff9";
-    ctx.fillRect(x - stroke * .36, y - (slide ? 1 : noteHeight * .23), stroke * .72, 1.5);
+    ctx.lineWidth = 1.25;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+    if (kind === "slide") {
+      ctx.beginPath();
+      ctx.ellipse(x, y, radius * .53, radius * .32, 0, 0, tau);
+      ctx.strokeStyle = "#372b66ad";
+      ctx.stroke();
+    }
   }
 
-  drawSparks(now) {
+  drawEffects(now) {
     const ctx = this.ctx;
+    this.ripples = this.ripples.filter(ripple => {
+      const age = (now - ripple.born) / 550;
+      if (age < 0) return true;
+      if (age >= 1) return false;
+      const radius = this.targetRadius + age * this.targetRadius * ripple.size;
+      ctx.globalAlpha = (1 - age) ** 2;
+      ctx.beginPath();
+      ctx.ellipse(this.x(ripple.lane), this.strike, radius, radius * .60, 0, 0, tau);
+      ctx.strokeStyle = ripple.color;
+      ctx.lineWidth = (1 - age) * 2.7 + .5;
+      ctx.stroke();
+      return true;
+    });
     this.sparks = this.sparks.filter(particle => {
       const age = (now - particle.born) / 1000;
       if (age >= particle.life) return false;
-      ctx.globalAlpha = (1 - age / particle.life) ** 2;
+      const x = this.x(particle.lane) + particle.dx * age;
+      const y = this.strike + particle.dy * age + 205 * age ** 2;
+      ctx.globalAlpha = (1 - age / particle.life) ** 1.7;
       ctx.fillStyle = particle.color;
       ctx.beginPath();
-      ctx.arc(this.x(particle.lane) + particle.dx * age, this.strike + particle.dy * age + 220 * age ** 2, particle.size, 0, 2 * Math.PI);
+      ctx.moveTo(x, y - particle.size * 1.8);
+      ctx.lineTo(x + particle.size, y);
+      ctx.lineTo(x, y + particle.size * 1.8);
+      ctx.lineTo(x - particle.size, y);
+      ctx.closePath();
       ctx.fill();
       return true;
     });

@@ -1,8 +1,8 @@
-const currentCache = "ritm-v2";
+const currentCache = "ritm-v3";
 const files = [
-  "./", "./index.html", "./styles.css?v=2", "./app.js?v=2", "./audio.js?v=2", "./game.js?v=2",
-  "./game-field.js?v=2", "./chart-worker.js?v=2", "./manifest.webmanifest?v=2",
-  "./assets/cover.webp", "./assets/aurora-stage.webp", "./assets/pulse-stage.webp", "./assets/neon-pulse.mp3",
+  "./", "./index.html", "./styles.css?v=3", "./app.js?v=3", "./audio.js?v=3", "./game.js?v=3",
+  "./game-field.js?v=3", "./chart-worker.js?v=3", "./manifest.webmanifest?v=3",
+  "./assets/cover.webp", "./assets/dusk-lake.webp", "./assets/neon-pulse.mp3",
   "./assets/manrope-latin.woff2", "./assets/manrope-cyrillic.woff2",
   "./assets/icon-192.png", "./assets/icon-512.png", "./assets/icon-maskable.png"
 ];
