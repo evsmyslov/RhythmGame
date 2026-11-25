@@ -1,6 +1,6 @@
-import { difficulties } from "./audio.js?v=8";
-import { GameField, laneAt } from "./game-field.js?v=8";
-import { HitSounds } from "./sound.js?v=8";
+import { difficulties } from "./audio.js?v=9";
+import { GameField, laneAt } from "./game-field.js?v=9";
+import { HitSounds } from "./sound.js?v=9";
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
 const formatNumber = new Intl.NumberFormat("ru");
 const percent = value => Math.round(value * 100) + "%";

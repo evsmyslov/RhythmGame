@@ -1,5 +1,5 @@
-import { StageEffects } from "./stage-effects.js?v=8";
-import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=8";
+import { StageEffects } from "./stage-effects.js?v=9";
+import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=9";
 
 const laneColors = ["#ffca8f", "#c7b1ff", "#82ead1", "#a5ccff"];
 const spectrum = ["#f9ca94", "#f6e4bc", "#cbb7ff", "#82ead1", "#a5ccff"];

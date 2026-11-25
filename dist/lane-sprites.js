@@ -1,13 +1,14 @@
 const tau = Math.PI * 2;
 
-function texture(width, height, draw) {
+function texture(width, height, draw, resolution = 1) {
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = width * resolution;
+  canvas.height = height * resolution;
   const ctx = canvas.getContext("2d");
-  ctx.translate(width / 2, height / 2);
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.scale(resolution, resolution);
   draw(ctx);
-  return canvas;
+  return { canvas, width, height };
 }
 
 function ellipse(ctx, x, y, rx, ry, fill, stroke, width = 1) {
@@ -134,10 +135,10 @@ function drawSpark(ctx, color) {
 export function buildLaneSprites(colors) {
   return colors.map(color => ({
     note: texture(108, 82, ctx => drawNote(ctx, color)),
-    slide: texture(72, 44, ctx => drawSlideCap(ctx, color, false)),
-    tail: texture(72, 44, ctx => drawSlideCap(ctx, color, true)),
-    target: texture(74, 46, ctx => drawTarget(ctx, color, false)),
-    targetLit: texture(74, 46, ctx => drawTarget(ctx, color, true)),
+    slide: texture(72, 44, ctx => drawSlideCap(ctx, color, false), 2.5),
+    tail: texture(72, 44, ctx => drawSlideCap(ctx, color, true), 2.5),
+    target: texture(74, 46, ctx => drawTarget(ctx, color, false), 2.5),
+    targetLit: texture(74, 46, ctx => drawTarget(ctx, color, true), 2.5),
     aura: texture(148, 98, ctx => {
       ctx.scale(1, .65);
       glow(ctx, color, 74, color);
@@ -150,5 +151,5 @@ export function drawLaneSprite(ctx, sprite, x, y, radius, verticalScale = 1) {
   const scale = radius / 32;
   const width = sprite.width * scale;
   const height = sprite.height * scale * verticalScale;
-  ctx.drawImage(sprite, x - width / 2, y - height / 2, width, height);
+  ctx.drawImage(sprite.canvas, x - width / 2, y - height / 2, width, height);
 }
