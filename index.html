@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#100b1c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="РИТМ — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
+  <title>РИТМ — Поймай свой ритм</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 10v4m4-7v10m5-14v18m5-14v10m4-7v4"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .4c0 1.7-2.5 1.9-2.5 3.6m0 3h.01"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l11-2v13M9 9l11-2"/><ellipse cx="6" cy="18" rx="3" ry="2"/><ellipse cx="17" cy="16" rx="3" ry="2"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="m10 13 4-4m-6 6-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0m2 4a3.5 3.5 0 0 0 5 0l4-4a3.5 3.5 0 0 0-5-5l-1 1" transform="translate(0 2) scale(.95)"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1.5"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m-4 4 4-4 4 4M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 2.7 2.82 5.7 6.29.92-4.55 4.44 1.07 6.27L12 17.07l-5.63 2.96 1.07-6.27L2.9 9.32l6.28-.92z"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-12h-7z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 5v14m6-14v14" stroke-width="3"/></symbol>
+    <symbol id="i-headphones" viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="4" y="12" width="4" height="7" rx="1.5"/><rect x="16" y="12" width="4" height="7" rx="1.5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12m-4-4 4 4 4-4M4 17v3h16v-3"/></symbol>
+    <symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 11a8 8 0 1 1 2 6M4 5v6h6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></symbol>
+  </svg>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="./" aria-label="РИТМ, главная">
+        <span class="brand-icon"><svg><use href="#i-wave"/></svg></span><span>РИТМ<span class="brand-period">.</span></span>
+      </a>
+      <nav class="header-actions" aria-label="Информация об игре">
+        <button class="quiet-button install-button" id="install-button" type="button" hidden><svg><use href="#i-download"/></svg><span>Установить</span></button>
+        <button class="quiet-button" id="help-button" type="button"><svg><use href="#i-help"/></svg>Как играть</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="home page-width" id="home">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <h1 id="hero-title">Поймай<br><span>свой ритм.</span></h1>
+        <p>Выбери любимую песню и сыграй её на четырёх дорожках.</p>
+      </div>
+    </section>
+
+    <div class="home-grid">
+      <form class="card setup" id="setup" novalidate>
+        <div class="section-heading">
+          <span class="section-icon"><svg><use href="#i-music"/></svg></span>
+          <div><h2>Новая игра</h2><p>Добавь трек и выбери сложность.</p></div>
+        </div>
+
+        <label class="field-label" for="track-url">Ссылка на аудио</label>
+        <div class="url-field">
+          <svg class="field-icon"><use href="#i-link"/></svg>
+          <input id="track-url" type="url" placeholder="https://example.com/track.mp3" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="source-error">
+          <button class="paste-button" id="paste-button" type="button" aria-label="Вставить ссылку" title="Вставить ссылку"><svg><use href="#i-clip"/></svg><span>Вставить</span></button>
+        </div>
+        <div class="source-row">
+          <input type="file" id="track-file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.opus,.flac,.aac,.webm" hidden>
+          <button class="file-button" id="file-button" type="button"><svg><use href="#i-upload"/></svg>Загрузить аудиофайл</button>
+          <div id="file-tag" class="file-tag" hidden><span id="file-name"></span><button class="icon-button" id="remove-file" type="button" aria-label="Убрать файл"><svg><use href="#i-close"/></svg></button></div>
+        </div>
+        <p class="field-error" id="source-error" role="alert" hidden></p>
+
+        <fieldset class="difficulty">
+          <legend class="field-label">Сложность</legend>
+          <div class="difficulty-options">
+            <label class="difficulty-option">
+              <input type="radio" name="difficulty" value="1" checked>
+              <span class="difficulty-card"><span class="stars" aria-hidden="true"><svg><use href="#i-star"/></svg></span><span>Легко</span><span class="visually-hidden">1 звезда</span></span>
+            </label>
+            <label class="difficulty-option">
+              <input type="radio" name="difficulty" value="2">
+              <span class="difficulty-card"><span class="stars" aria-hidden="true"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></span><span>Средне</span><span class="visually-hidden">2 звезды</span></span>
+            </label>
+            <label class="difficulty-option">
+              <input type="radio" name="difficulty" value="3">
+              <span class="difficulty-card"><span class="stars" aria-hidden="true"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></span><span>Сложно</span><span class="visually-hidden">3 звезды</span></span>
+            </label>
+          </div>
+        </fieldset>
+
+        <button class="primary-button generate-button" id="generate-button" type="submit"><svg><use href="#i-bolt"/></svg>Сгенерировать уровень</button>
+        <div class="generation-status" id="generation-status" hidden><span class="spinner" aria-hidden="true"></span><span id="status-text" role="status"></span><button class="text-button" id="cancel-generation" type="button">Отмена</button></div>
+      </form>
+
+      <aside class="card guide" aria-labelledby="guide-title">
+        <div class="section-heading">
+          <span class="section-icon"><svg><use href="#i-help"/></svg></span>
+          <div><h2 id="guide-title">Как играть</h2></div>
+        </div>
+        <div class="lane-preview" aria-hidden="true">
+          <div class="preview-lane lane-pink"><span style="--note-y: 42%"></span></div>
+          <div class="preview-lane lane-purple"><span style="--note-y: 19%"></span></div>
+          <div class="preview-lane lane-cyan"><span style="--note-y: 50%"></span></div>
+          <div class="preview-lane lane-blue"><span style="--note-y: 30%"></span></div>
+          <div class="preview-hit"></div>
+        </div>
+        <p>Нажимай на дорожку в момент, когда нота коснётся светящейся линии.</p>
+        <button class="secondary-button demo-button" id="demo-button" type="button"><svg><use href="#i-play"/></svg>Попробовать демо</button>
+      </aside>
+    </div>
+
+    <footer class="home-footer"><svg><use href="#i-headphones"/></svg>Для игры пригодится звук — включи его на телефоне.</footer>
+  </main>
+
+  <main class="game page-width" id="game" hidden>
+    <div class="game-toolbar">
+      <button class="quiet-button" id="back-button" type="button"><svg><use href="#i-close"/></svg><span>К песням</span></button>
+      <div class="game-track"><strong id="game-title"></strong><span id="game-detail"></span></div>
+      <button class="quiet-button pause-button" id="pause-button" aria-label="Пауза" type="button" disabled><svg><use href="#i-pause"/></svg></button>
+    </div>
+    <div class="progress" role="progressbar" id="game-progress" aria-label="Ход песни" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+    <div class="scorebar">
+      <div><span>Счёт</span><strong id="score">0</strong></div>
+      <div><span>Комбо</span><strong id="combo">0</strong></div>
+      <div><span>Точность</span><strong id="accuracy">—</strong></div>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="chart-canvas" aria-hidden="true"></canvas>
+      <div class="lane-controls" aria-label="Игровые дорожки">
+        <button class="lane-control lane-pink" type="button" data-lane="0" aria-label="Дорожка 1, клавиша D"><span>D</span></button>
+        <button class="lane-control lane-purple" type="button" data-lane="1" aria-label="Дорожка 2, клавиша F"><span>F</span></button>
+        <button class="lane-control lane-cyan" type="button" data-lane="2" aria-label="Дорожка 3, клавиша J"><span>J</span></button>
+        <button class="lane-control lane-blue" type="button" data-lane="3" aria-label="Дорожка 4, клавиша K"><span>K</span></button>
+      </div>
+      <div class="judgement" id="judgement" aria-hidden="true"></div>
+      <div class="countdown" id="countdown" aria-hidden="true" hidden></div>
+      <div class="stage-overlay" id="stage-overlay">
+        <div class="overlay-content" id="ready-screen">
+          <span class="overlay-icon"><svg><use href="#i-music"/></svg></span>
+          <h1 id="ready-title">Уровень готов</h1>
+          <p id="ready-detail"></p>
+          <p class="play-error" id="play-error" role="alert" hidden></p>
+          <button class="primary-button" id="start-button" type="button"><svg><use href="#i-play"/></svg><span>Начать игру</span></button>
+        </div>
+        <div class="overlay-content" id="results-screen" hidden>
+          <span class="overlay-icon"><svg><use href="#i-check"/></svg></span>
+          <h1>Трек завершён</h1>
+          <dl class="result-metrics">
+            <div><dt>Счёт</dt><dd id="result-score">0</dd></div>
+            <div><dt>Точность</dt><dd id="result-accuracy">0%</dd></div>
+            <div><dt>Макс. комбо</dt><dd id="result-combo">0</dd></div>
+          </dl>
+          <p id="result-hits"></p>
+          <button class="primary-button" id="replay-button" type="button"><svg><use href="#i-replay"/></svg>Сыграть снова</button>
+          <button class="text-button" id="result-back" type="button">Выбрать песню</button>
+        </div>
+      </div>
+    </div>
+    <p class="game-hint"><span class="hint-touch">Касайся дорожек, когда ноты доходят до линии.</span><span class="hint-keyboard">Клавиши дорожек — <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd></span></p>
+  </main>
+
+  <dialog class="info-dialog" id="help-dialog" aria-labelledby="help-title">
+    <div class="dialog-heading"><h2 id="help-title">Как играть</h2><form method="dialog"><button class="icon-button" aria-label="Закрыть"><svg><use href="#i-close"/></svg></button></form></div>
+    <ol>
+      <li>Вставь прямую ссылку на аудио или выбери файл с телефона.</li>
+      <li>Выбери от одной до трёх звёзд. На сложных уровнях ноты летят быстрее и встречаются чаще.</li>
+      <li>Нажимай на дорожки, когда ноты доходят до линии. На клавиатуре работают D, F, J и K.</li>
+    </ol>
+    <p>Для тренировки открой демо. Ссылки на страницы YouTube и Spotify не содержат доступного игре аудиофайла.</p>
+    <form method="dialog"><button class="primary-button">Понятно</button></form>
+  </dialog>
+
+  <dialog class="info-dialog" id="install-dialog" aria-labelledby="install-title">
+    <div class="dialog-heading"><h2 id="install-title">На главный экран</h2><form method="dialog"><button class="icon-button" aria-label="Закрыть"><svg><use href="#i-close"/></svg></button></form></div>
+    <p><strong>iPhone.</strong> Открой игру в Safari, нажми «Поделиться» и выбери «На экран Домой».</p>
+    <p><strong>Android.</strong> Открой меню Chrome и выбери «Установить приложение» или «Добавить на главный экран».</p>
+    <form method="dialog"><button class="primary-button">Понятно</button></form>
+  </dialog>
+</body>
+</html>
