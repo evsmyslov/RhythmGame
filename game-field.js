@@ -1,3 +1,5 @@
+import { StageEffects } from "./stage-effects.js?v=5";
+
 const laneColors = ["#ff9bcb", "#c6b0ff", "#8bf0eb", "#a5c8ff"];
 const spectrum = ["#ff9bcb", "#ffd2ab", "#cbb7ff", "#8bf0eb", "#a5c8ff"];
 const tau = Math.PI * 2;
@@ -18,6 +20,7 @@ export class GameField {
     this.stage = stage;
     this.ctx = canvas.getContext("2d");
     this.motion = matchMedia("(prefers-reduced-motion: reduce)");
+    this.effects = new StageEffects(this.ctx, stage.querySelector(".stage-bloom"), this.motion);
     this.reset();
   }
 
@@ -25,6 +28,8 @@ export class GameField {
     this.flashes = [-Infinity, -Infinity, -Infinity, -Infinity];
     this.sparks = [];
     this.ripples = [];
+    this.impacts = [];
+    this.effects.reset();
   }
 
   resize() {
@@ -53,6 +58,7 @@ export class GameField {
     this.canvas.width = Math.round(width * dpr);
     this.canvas.height = Math.round(height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.effects.resize(width, height, this.spawn);
     this.laneShades = laneColors.map(color => {
       const shade = this.ctx.createLinearGradient(0, this.spawn, 0, height);
       shade.addColorStop(0, color + "0c");
@@ -92,18 +98,23 @@ export class GameField {
     this.flashes[nearest] = now;
     if (!power || this.motion.matches) return;
 
-    this.ripples.push({ lane, born: now, color: laneColors[nearest], size: 1.2 + power / 25 });
+    const color = laneColors[nearest];
+    this.ripples.push({ lane, born: now, color, size: 1.4 + power / 21 });
+    if (power >= 18) this.ripples.push({ lane, born: now + 64, color: spectrum[(nearest + 2) % spectrum.length], size: 2.25 });
+    this.impacts.push({ lane, born: now, color, power: Math.min(1, power / 20) });
     this.scatter(lane, power, now, false);
   }
 
-  celebrate(lane) {
+  celebrate(lane, combo) {
     if (!this.width || this.motion.matches) return;
     const now = performance.now();
+    this.effects.celebrate(now, combo);
     for (let i = 0; i < laneColors.length; i++) {
       const delay = Math.abs(i - lane) * 52;
-      this.ripples.push({ lane: i, born: now + delay, color: spectrum[i], size: 2.35 });
+      this.ripples.push({ lane: i, born: now + delay, color: spectrum[i], size: 3.1 });
     }
-    this.scatter(lane, 34, now, true);
+    this.scatter(lane, 42, now, true);
+    for (const edge of [0, 3]) this.scatter(edge, 16, now, true);
   }
 
   scatter(lane, count, now, celebration) {
@@ -120,13 +131,15 @@ export class GameField {
     if (this.sparks.length > 150) this.sparks.splice(0, this.sparks.length - 150);
   }
 
-  draw(notes, cursor, time, approach, activeNote) {
+  draw(notes, cursor, time, approach, activeNote, musicPlaying) {
     if (!this.width) return;
     const ctx = this.ctx;
     const { width, height, strike } = this;
     const now = performance.now();
     ctx.clearRect(0, 0, width, height);
+    this.effects.draw(musicPlaying ? time : -1, now);
     this.drawHighway();
+    this.effects.drawRoad(this);
     this.drawTargets(now);
 
     ctx.save();
@@ -294,8 +307,42 @@ export class GameField {
     }
   }
 
+  drawImpact(impact, age) {
+    const ctx = this.ctx;
+    const opacity = (1 - age) ** 2 * impact.power;
+    const radius = this.targetRadius * (1.35 + age * 2.1);
+    const x = this.x(impact.lane);
+    const y = this.strike;
+    const flare = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    flare.addColorStop(0, "#f7ffff");
+    flare.addColorStop(.28, impact.color + "e6");
+    flare.addColorStop(.65, impact.color + "31");
+    flare.addColorStop(1, impact.color + "00");
+    ctx.globalAlpha = opacity * .95;
+    ctx.fillStyle = flare;
+    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+
+    ctx.beginPath();
+    ctx.moveTo(x - radius * 1.25, y);
+    ctx.lineTo(x + radius * 1.25, y);
+    ctx.moveTo(x, y - radius * .78);
+    ctx.lineTo(x, y + radius * .56);
+    ctx.strokeStyle = impact.color;
+    ctx.lineWidth = 1.2 + 2.2 * opacity;
+    ctx.globalAlpha = opacity * .61;
+    ctx.stroke();
+  }
+
   drawEffects(now) {
     const ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    this.impacts = this.impacts.filter(impact => {
+      const age = (now - impact.born) / 425;
+      if (age >= 1) return false;
+      this.drawImpact(impact, age);
+      return true;
+    });
     this.ripples = this.ripples.filter(ripple => {
       const age = (now - ripple.born) / 550;
       if (age < 0) return true;
@@ -316,6 +363,12 @@ export class GameField {
       const y = this.strike + particle.dy * age + 205 * age ** 2;
       ctx.globalAlpha = (1 - age / particle.life) ** 1.7;
       ctx.fillStyle = particle.color;
+      ctx.strokeStyle = particle.color;
+      ctx.lineWidth = particle.size * .54;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - particle.dx * .077, y - (particle.dy + 410 * age) * .077);
+      ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(x, y - particle.size * 1.8);
       ctx.lineTo(x + particle.size, y);
@@ -325,6 +378,6 @@ export class GameField {
       ctx.fill();
       return true;
     });
-    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 }

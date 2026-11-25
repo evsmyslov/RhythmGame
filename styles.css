@@ -253,6 +253,15 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
   50% { opacity: .68; }
   100% { opacity: .49; }
 }
+.stage-bloom {
+  position: absolute;
+  inset: -20% -3% 0;
+  pointer-events: none;
+  opacity: 0;
+  transform-origin: 50% 26%;
+  background: url("assets/spectral-bloom.webp") center bottom / cover no-repeat;
+  mix-blend-mode: screen;
+}
 #chart-canvas, .lane-controls, .stage-overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
 #chart-canvas { display: block; }
 .lane-controls {
@@ -347,7 +356,11 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
   .stage-overlay { padding-top: calc(56px + env(safe-area-inset-top)); }
   .overlay-content .ready-hint { margin-top: 0; }
 }
+@media (orientation: portrait) {
+  .stage-bloom { inset: 2% -4% 0; background-position: center top; background-size: 155% auto; }
+}
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; }
   .stage::before { animation: none; }
+  .stage-bloom { display: none; }
 }

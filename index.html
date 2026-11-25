@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="РИТМ — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
   <title>РИТМ — Поймай свой ритм</title>
-  <link rel="manifest" href="manifest.webmanifest?v=4">
+  <link rel="manifest" href="manifest.webmanifest?v=5">
   <link rel="icon" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=4">
-  <script type="module" src="app.js?v=4"></script>
+  <link rel="stylesheet" href="styles.css?v=5">
+  <script type="module" src="app.js?v=5"></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -135,6 +135,7 @@
     </div>
     <p class="fullscreen-notice" id="fullscreen-notice" role="status" hidden>Браузер не включил полноэкранный режим.</p>
     <div class="stage" id="stage">
+      <div class="stage-bloom" aria-hidden="true"></div>
       <canvas id="chart-canvas" aria-hidden="true"></canvas>
       <div class="lane-controls" id="lane-controls" aria-label="Игровые дорожки">
         <button class="lane-control lane-pink" type="button" data-lane="0" aria-label="Дорожка 1, клавиша D"><span>D</span></button>

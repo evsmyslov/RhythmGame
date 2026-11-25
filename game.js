@@ -1,5 +1,5 @@
-import { difficulties } from "./audio.js?v=4";
-import { GameField, laneAt } from "./game-field.js?v=4";
+import { difficulties } from "./audio.js?v=5";
+import { GameField, laneAt } from "./game-field.js?v=5";
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
 const formatNumber = new Intl.NumberFormat("ru");
 const percent = value => Math.round(value * 100) + "%";
@@ -74,6 +74,7 @@ export class RhythmGame {
   open(track) {
     this.track = track;
     this.settings = difficulties[track.difficulty];
+    this.field.effects.setTiming(track.accents, track.climaxes);
     item("game").dataset.theme = track.difficulty;
     this.slideCount = track.notes.filter(note => note.path).length;
     this.reset();
@@ -363,8 +364,8 @@ export class RhythmGame {
     else this.good++;
     const points = perfect ? 1000 : 650;
     this.score += (note.path ? Math.round(points * 1.45) : points) + Math.min((this.combo - 1) * 12, 360);
-    this.field.illuminate(lane, note.path ? 19 : perfect ? 13 : 7);
-    if (this.combo % 10 === 0) this.field.celebrate(lane);
+    this.field.illuminate(lane, note.path ? 26 : perfect ? 21 : 10);
+    if (this.combo % 10 === 0) this.field.celebrate(lane, this.combo);
     this.feedback(perfect ? "Идеально" : "Хорошо", perfect ? "#ffa9dc" : "#9decf5");
     this.updateScores();
   }
@@ -426,16 +427,16 @@ export class RhythmGame {
     this.comboMilestone = milestone;
     const frames = milestone ? [
       { transform: stable },
-      { transform: "translateX(-3px) rotate(-6deg) scale(" + (scale + .22) + ")", color: "#fff8ce", offset: .2 },
-      { transform: "translateX(3px) rotate(5deg) scale(" + (scale + .14) + ")", color: "#d5fdff", offset: .42 },
-      { transform: "translateX(-1.5px) rotate(-3deg) scale(" + (scale + .07) + ")", color: "#efc5ff", offset: .62 },
+      { transform: "translateX(-5px) rotate(-9deg) scale(" + (scale + .48) + ")", color: "#fff8ce", offset: .2 },
+      { transform: "translateX(5px) rotate(7deg) scale(" + (scale + .24) + ")", color: "#d5fdff", offset: .42 },
+      { transform: "translateX(-2px) rotate(-4deg) scale(" + (scale + .13) + ")", color: "#efc5ff", offset: .62 },
       { transform: stable }
     ] : [
       { transform: stable },
       { transform: "scale(" + (scale + .075) + ")", offset: .3 },
       { transform: stable }
     ];
-    this.comboAnimation = label.animate(frames, { duration: milestone ? 520 : 160, easing: "ease-out" });
+    this.comboAnimation = label.animate(frames, { duration: milestone ? 660 : 160, easing: "ease-out" });
   }
 
   updateProgress(time) {
@@ -478,6 +479,6 @@ export class RhythmGame {
   }
 
   draw(time) {
-    this.field.draw(this.notes, this.missCursor, time, this.settings.approach, this.slide?.note);
+    this.field.draw(this.notes, this.missCursor, time, this.settings.approach, this.slide?.note, this.phase === "playing");
   }
 }
