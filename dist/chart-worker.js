@@ -6,7 +6,7 @@ const difficultySettings = {
 
 self.addEventListener("message", ({ data }) => {
   try {
-    self.postMessage({ notes: makeChart(data.samples, data.sampleRate, data.difficulty) });
+    self.postMessage(makeChart(data.samples, data.sampleRate, data.difficulty));
   } catch {
     self.postMessage({ error: "Не удалось построить дорожки для этого трека." });
   }
@@ -58,7 +58,7 @@ function makeChart(samples, sampleRate, difficulty) {
     previousHigh = hi;
   }
 
-  if (peakEnergy < .00015) return [];
+  if (peakEnergy < .00015) return { notes: [], accents: [], climaxes: [] };
 
   const peaks = [];
   let maxStrength = 0;
@@ -126,7 +126,52 @@ function makeChart(samples, sampleRate, difficulty) {
     }
   });
 
-  return addSlides(notes, difficulty);
+  return { notes: addSlides(notes, difficulty), ...stageTiming(peaks, maxStrength, energy, frameTime, duration) };
+}
+
+function stageTiming(onsets, strongest, energy, frameTime, duration) {
+  const accents = [];
+  for (const onset of onsets) {
+    const strength = onset.strength / strongest;
+    if (strength < .19) continue;
+    const previous = accents.at(-1);
+    if (!previous || onset.time - previous.time >= .24) {
+      accents.push({ time: onset.time, strength });
+    } else if (strength > previous.strength) {
+      accents[accents.length - 1] = { time: onset.time, strength };
+    }
+  }
+
+  const climaxes = [];
+  if (duration < 6 || !accents.length) return { accents, climaxes };
+  const sum = new Float64Array(energy.length + 1);
+  for (let i = 0; i < energy.length; i++) sum[i + 1] = sum[i] + energy[i] ** 2;
+  const loudness = (from, to) => {
+    const start = Math.max(0, Math.floor(from / frameTime));
+    const end = Math.min(energy.length, Math.ceil(to / frameTime));
+    return Math.sqrt((sum[end] - sum[start]) / Math.max(1, end - start));
+  };
+  const average = loudness(0, duration);
+  let cursor = 0;
+  for (let start = Math.min(7.4, duration * .3); start < duration - 2.4; start += 30) {
+    const end = Math.min(start + 8.5, duration - 2.4);
+    while (cursor < accents.length && accents[cursor].time < start) cursor++;
+    let chosen;
+    let best = -Infinity;
+    while (cursor < accents.length && accents[cursor].time <= end) {
+      const accent = accents[cursor++];
+      const before = loudness(accent.time - 1.1, accent.time - .06);
+      const after = loudness(accent.time, accent.time + 1.25);
+      const lift = Math.min(2, Math.max(0, (after - before) / average));
+      const score = accent.strength * .95 + lift * .9 + Math.min(2, after / average) * .32;
+      if (score > best) {
+        best = score;
+        chosen = accent;
+      }
+    }
+    if (chosen) climaxes.push(chosen.time);
+  }
+  return { accents, climaxes };
 }
 
 function addSlides(notes, difficulty) {
