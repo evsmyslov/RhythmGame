@@ -176,7 +176,7 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
 .preview-lane:last-of-type { border-right: 0; }
 .preview-lane span, .preview-lane::after { position: absolute; left: 50%; transform: translateX(-50%); border-radius: 50%; }
 .preview-lane span { top: var(--note-y); width: 22px; height: 13px; background: radial-gradient(ellipse at 42% 20%, #fff, var(--lane) 66%); box-shadow: 0 0 12px var(--lane); }
-.preview-lane::after { content: ""; top: 73%; width: 25px; height: 14px; border: 1px solid var(--lane); box-shadow: 0 0 11px rgba(var(--lane-rgb), .45); }
+.preview-lane::after { content: ""; top: 73%; width: 57%; height: 12px; border: 1px solid var(--lane); border-radius: 4px; box-shadow: inset 0 -3px rgba(var(--lane-rgb), .55), 0 3px #0a1024, 0 0 11px rgba(var(--lane-rgb), .34); background: #1d2845; }
 .home-footer { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 21px 12px max(22px, env(safe-area-inset-bottom)); color: #a397b3; font-size: .81rem; text-align: center; }
 
 .info-dialog { width: min(450px, calc(100% - 32px)); padding: 23px; border-radius: 19px; border: 1px solid #543d69; background: #20162f; color: #f7efff; box-shadow: 0 14px 60px #0009; }
@@ -263,8 +263,7 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
   text-shadow: 0 2px 10px #1d3267, 0 0 21px #58b6ffe0;
 }
 .stage {
-  --strike-depth: 18.5dvh;
-  --target-height: 12px;
+  --key-label-bottom: 11dvh;
   --hit-inset: 9%;
   position: absolute;
   inset: 0;
@@ -311,11 +310,12 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
 .lane-control:focus-visible { outline-offset: -4px; border-radius: 12px; }
 .lane-control span {
   position: absolute;
-  inset: auto 0 max(8px, calc(var(--strike-depth) - var(--target-height) - 27px));
-  color: rgba(var(--lane-rgb), .83);
-  font-weight: 800;
-  font-size: .80rem;
-  text-shadow: 0 0 10px var(--lane);
+  bottom: var(--key-label-bottom);
+  left: 50%;
+  transform: translate(-50%, 50%);
+  color: var(--lane);
+  font: 700 .8rem/1 ui-monospace, monospace;
+  text-shadow: 0 1px 5px #030814;
   pointer-events: none;
 }
 .lane-control.pressed span, .lane-control:active span { color: #fff; }
