@@ -1,10 +1,27 @@
-import { StageEffects } from "./stage-effects.js?v=7";
-import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=7";
+import { StageEffects } from "./stage-effects.js?v=8";
+import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=8";
 
 const laneColors = ["#ffca8f", "#c7b1ff", "#82ead1", "#a5ccff"];
 const spectrum = ["#f9ca94", "#f6e4bc", "#cbb7ff", "#82ead1", "#a5ccff"];
 const tau = Math.PI * 2;
 const clamp = (number, min, max) => Math.max(min, Math.min(max, number));
+
+function fillRibbon(ctx, sections, width, color) {
+  const first = sections[0];
+  ctx.beginPath();
+  ctx.moveTo(first.x - first.radius * width, first.y);
+  for (let i = 1; i < sections.length; i++) {
+    const { x, y, radius } = sections[i];
+    ctx.lineTo(x - radius * width, y);
+  }
+  for (let i = sections.length - 1; i >= 0; i--) {
+    const { x, y, radius } = sections[i];
+    ctx.lineTo(x + radius * width, y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
 
 export function laneAt(path, time) {
   for (let i = 1; i < path.length; i++) {
@@ -32,6 +49,7 @@ export class GameField {
     this.sparks = [];
     this.ripples = [];
     this.impacts = [];
+    this.visibleTaps = [];
     this.pressDepth = [0, 0, 0, 0];
     this.pressedLanes = 0;
     this.previousFrame = undefined;
@@ -55,10 +73,9 @@ export class GameField {
     this.hitLaneWidth = this.hitWidth / 4;
     this.hitLeft = (width - this.hitWidth) / 2;
     this.noteRadius = Math.min(this.hitLaneWidth * .34, clamp(height * .065, 16, 35));
-    this.targetRadius = Math.min(this.hitLaneWidth * .43, this.noteRadius + 8);
+    this.targetRadius = Math.min(this.hitLaneWidth * .42, clamp(height * .14, 31, 82));
     this.stage.style.setProperty("--hit-inset", this.hitLeft + "px");
-    this.stage.style.setProperty("--strike-depth", (height - this.strike) + "px");
-    this.stage.style.setProperty("--target-height", this.targetRadius * .56 + "px");
+    this.stage.style.setProperty("--key-label-bottom", Math.max(8, height - this.strike - this.targetRadius * .63 - 8) + "px");
 
     const pixelLimit = Math.max(1, Math.sqrt(1320000 / (width * height)));
     const dpr = Math.min(window.devicePixelRatio || 1, 1.65, pixelLimit);
@@ -158,13 +175,16 @@ export class GameField {
       const progress = 1 - (timestamp - time) / approach;
       return this.spawn + this.travel * (progress < 0 ? .6 * progress : progress * (.64 + .36 * progress));
     };
+    const taps = this.visibleTaps;
+    taps.length = 0;
     for (let index = cursor; index < notes.length; index++) {
       const note = notes[index];
       if (note.time - time > approach + .1) break;
       if (note.judged) continue;
       if (note.path) this.drawSlide(note, position, time, activeNote === note);
-      else this.drawHead(note.lane, position(note.time));
+      else taps.push(note);
     }
+    for (const note of taps) this.drawHead(note.lane, position(note.time));
     ctx.restore();
     this.drawEffects(now);
   }
@@ -211,89 +231,109 @@ export class GameField {
 
     for (let lane = 0; lane < 4; lane++) {
       const age = now - this.flashes[lane];
-      const glow = Math.max(0, 1 - age / 245);
+      const glow = Math.max(0, 1 - age / 200);
       const holding = (this.pressedLanes & (1 << lane)) ? 1 : 0;
       this.pressDepth[lane] += (holding - this.pressDepth[lane]) * response;
-      const tapTravel = moving ? Math.max(0, 1 - age / 94) * .8 : 0;
+      const tapTravel = moving ? Math.max(0, 1 - age / 88) * .75 : 0;
       const pressure = Math.max(this.pressDepth[lane], tapTravel);
-      const phase = now * .0022 + lane * 1.3;
-      const breath = moving ? .5 + Math.sin(phase) * .5 : 0;
       const pulse = moving ? this.effects.pulse : 0;
       const x = this.x(lane);
-      const y = this.strike + pressure * 3.1 - glow * (1 - pressure) * 2.5;
-      const color = laneColors[lane];
+      const y = this.strike + (this.motion.matches ? 0 : pressure * 4);
       const sprite = this.laneSprites[lane];
-      const radius = this.targetRadius * (1 + breath * .035 + pulse * .035 + pressure * .045);
-      const vertical = 1 - pressure * .23 + glow * (1 - pressure) * .075;
+      const radius = this.targetRadius;
+      const vertical = this.motion.matches ? 1 : 1 - pressure * .16;
+      const brightness = Math.max(pressure, glow);
 
-      ctx.globalAlpha = .30 + breath * .08 + pulse * .25 + glow * .31;
-      drawLaneSprite(ctx, sprite.aura, x, this.strike + 5, radius * 1.42, .79);
+      ctx.globalAlpha = .16 + pulse * .13 + brightness * .37;
+      drawLaneSprite(ctx, sprite.aura, x, this.strike + 5, radius * 1.05, .72);
       ctx.globalAlpha = 1;
       drawLaneSprite(ctx, sprite.target, x, y, radius, vertical);
-      ctx.globalAlpha = .34 + glow * .49 + pressure * .15;
-      ctx.beginPath();
-      const sweep = moving ? phase : .25;
-      ctx.ellipse(x, y - 1, radius * .76, radius * .42 * vertical, 0, sweep, sweep + 1.5);
-      ctx.strokeStyle = glow > .08 ? "#faffff" : color;
-      ctx.lineWidth = 1.25 + glow;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
+      if (brightness > .03) {
+        ctx.globalAlpha = brightness;
+        drawLaneSprite(ctx, sprite.targetLit, x, y, radius, vertical);
+        ctx.globalAlpha = 1;
+      }
     }
   }
 
   drawSlide(note, position, time, active) {
-    const ctx = this.ctx;
     const head = active ? { time, lane: laneAt(note.path, time) } : note.path[0];
     const tail = note.path.at(-1);
     const headY = position(head.time);
-    const color = laneColors[note.lane];
+    if (headY < this.spawn - 27) return;
 
     if (tail.time > head.time) {
-      const headX = this.x(head.lane, headY);
-      ctx.beginPath();
-      ctx.moveTo(headX, headY);
-      let previous = head;
-      for (const point of note.path) {
-        if (point.time <= head.time) continue;
-        const halfway = (previous.time + point.time) / 2;
-        const middleY = position(halfway);
-        const middleX = this.x((previous.lane + point.lane) / 2, middleY);
-        const endY = position(point.time);
-        ctx.quadraticCurveTo(middleX, middleY, this.x(point.lane, endY), endY);
-        previous = point;
-      }
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = color + "35";
-      ctx.lineWidth = this.noteRadius * .91;
-      ctx.stroke();
-      ctx.strokeStyle = active ? "#d9f9ffbd" : color + "b5";
-      ctx.lineWidth = this.noteRadius * .59;
-      ctx.stroke();
-      ctx.strokeStyle = "#f6fbffd6";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      this.drawHead(tail.lane, position(tail.time), tail.lane, "tail");
+      this.drawSlideRibbon(note.path, position, head, laneColors[note.lane], active);
+      this.drawHead(tail.lane, position(tail.time), note.lane, "tail");
     }
     this.drawHead(head.lane, headY, note.lane, "slide");
   }
 
-  drawHead(lane, y, spriteLane = lane, kind = "tap") {
-    if (y < this.spawn - 27 || y > this.strike + 36) return;
-    const ctx = this.ctx;
+  noteSize(y) {
     const depth = clamp((y - this.spawn) / this.travel, 0, 1);
     const laneRadius = this.spanAt(y) / 4 * .43;
-    const noteRadius = Math.min(this.noteRadius * (.52 + .48 * depth), laneRadius);
-    const radius = noteRadius * (kind === "tail" ? .53 : 1);
-    const x = this.x(lane, y);
-    drawLaneSprite(ctx, this.laneSprites[spriteLane].note, x, y, radius);
-    if (kind === "slide") {
-      ctx.beginPath();
-      ctx.ellipse(x, y - 1, radius * .40, radius * .24, 0, 0, tau);
-      ctx.strokeStyle = "#342d62";
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
+    return Math.min(this.noteRadius * (.52 + .48 * depth), laneRadius);
+  }
+
+  drawSlideRibbon(path, position, head, color, active) {
+    const ctx = this.ctx;
+    const sectionAt = (time, lane) => {
+      const y = position(time);
+      return { x: this.x(lane, y), y, radius: this.noteSize(y) * .93 };
+    };
+    const sections = [sectionAt(head.time, head.lane)];
+    const arrows = [];
+    let previous = head;
+
+    for (const point of path) {
+      if (point.time <= head.time) continue;
+      const start = sections.at(-1);
+      const end = sectionAt(point.time, point.lane);
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.hypot(dx, dy);
+      const steps = clamp(Math.ceil(length / 14), 3, 14);
+      const section = ratio => sectionAt(
+        previous.time + (point.time - previous.time) * ratio,
+        previous.lane + (point.lane - previous.lane) * ratio
+      );
+      for (let i = 1; i < steps; i++) sections.push(section(i / steps));
+      sections.push(end);
+      if (Math.abs(point.lane - previous.lane) > .2 && length > 37) {
+        const angle = Math.atan2(dy, dx);
+        for (const ratio of length > 115 ? [.38, .69] : [.53]) {
+          const marker = section(ratio);
+          if (marker.y >= this.spawn) arrows.push({ ...marker, angle });
+        }
+      }
+      previous = point;
     }
+
+    fillRibbon(ctx, sections, 1, "#11182f");
+    fillRibbon(ctx, sections, .90, active ? "#edffff" : color);
+    fillRibbon(ctx, sections, .72, active ? color + "90" : "#1520435e");
+    for (const { x, y, radius, angle } of arrows) {
+      const size = clamp(radius * .42, 2.8, 8.5);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(-size * .62, -size);
+      ctx.lineTo(size * .60, 0);
+      ctx.lineTo(-size * .62, size);
+      ctx.strokeStyle = "#14213be8";
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.lineWidth = clamp(size * .36, 1.3, 3);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  drawHead(lane, y, spriteLane = lane, kind = "note") {
+    if (y < this.spawn - 27 || y > this.strike + 36) return;
+    const radius = this.noteSize(y) * (kind === "tail" ? .86 : 1);
+    drawLaneSprite(this.ctx, this.laneSprites[spriteLane][kind], this.x(lane, y), y, radius);
   }
 
   drawImpact(impact, age) {

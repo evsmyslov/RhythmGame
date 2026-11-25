@@ -1,13 +1,11 @@
-const size = 160;
-const center = size / 2;
 const tau = Math.PI * 2;
 
-function texture(draw) {
+function texture(width, height, draw) {
   const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d");
-  ctx.translate(center, center);
+  ctx.translate(width / 2, height / 2);
   draw(ctx);
   return canvas;
 }
@@ -57,23 +55,63 @@ function drawNote(ctx, color) {
   ellipse(ctx, 12, 7, 6, 1.3, "#ffffff83");
 }
 
-function drawTarget(ctx, color) {
-  ellipse(ctx, 0, 7, 38, 24, "#0c1127a4");
-  const rim = tint(ctx, -20, 24, [[0, "#f3f8ff"], [.34, color], [.57, "#324477"], [1, color]]);
-  const face = tint(ctx, -14, 15, [[0, "#263355"], [.36, "#111b36"], [1, "#293757"]]);
-  const pool = tint(ctx, -10, 13, [[0, "#26304e"], [.62, "#263455"], [1, color + "7d"]]);
-  ellipse(ctx, 0, 2, 32, 19, rim, "#c9ddfbc6", 1);
-  ellipse(ctx, 0, -1, 28.7, 16.4, face, color + "c7", 1.2);
-  ellipse(ctx, 0, -1, 22, 12, pool, "#e4efff59", .9);
-
+function keyProfile(ctx, top, bottom, back, front, fill, stroke, width) {
   ctx.beginPath();
-  ctx.ellipse(0, .5, 25, 13.8, 0, Math.PI * 1.13, Math.PI * 1.66);
-  ctx.strokeStyle = "#f7ffffd4";
-  ctx.lineWidth = 1.35;
+  ctx.moveTo(-back + 5, top);
+  ctx.lineTo(back - 5, top);
+  ctx.quadraticCurveTo(back, top, back + 2, top + 4);
+  ctx.lineTo(front, bottom - 5);
+  ctx.quadraticCurveTo(front + 1.5, bottom, front - 5, bottom);
+  ctx.lineTo(-front + 5, bottom);
+  ctx.quadraticCurveTo(-front - 1.5, bottom, -front, bottom - 5);
+  ctx.lineTo(-back - 2, top + 4);
+  ctx.quadraticCurveTo(-back, top, -back + 5, top);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  }
+}
+
+function bar(ctx, x, y, width, height, color) {
+  const radius = height / 2;
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y + radius);
+  ctx.lineTo(x + width - radius, y + radius);
   ctx.lineCap = "round";
+  ctx.lineWidth = height;
+  ctx.strokeStyle = color;
   ctx.stroke();
-  ellipse(ctx, -2, -.5, 6.5, 4.2, color + "49", color + "bd", .7);
-  ellipse(ctx, -2, -.85, 2.5, 1.5, "#edf9ff");
+}
+
+function drawTarget(ctx, color, lit) {
+  const base = tint(ctx, 7, 20, [[0, "#202a49"], [1, "#070b1c"]]);
+  keyProfile(ctx, -10, 20, 25, 33, base, color + "80", 1.2);
+
+  const surface = tint(ctx, -15, 12, lit
+    ? [[0, color + "bf"], [.29, "#2a3857"], [.77, "#32486c"], [1, color]]
+    : [[0, "#3b4b70"], [.31, "#192544"], [.71, "#111a34"], [1, "#3b517a"]]);
+  keyProfile(ctx, -15, 12, 25, 33, surface, lit ? "#f3ffff" : color, lit ? 1.75 : 1.35);
+
+  bar(ctx, -21, -12, 42, 1.4, lit ? "#ffffff" : color + "b3");
+  bar(ctx, -25, 7, 50, 2.4, lit ? "#f8ffff" : color + "e8");
+  bar(ctx, -20, 15, 40, 2.1, lit ? color : color + "54");
+  bar(ctx, -5, -2, 10, 2.4, lit ? "#f8ffff" : color + "84");
+}
+
+function drawSlideCap(ctx, color, tail) {
+  const surface = tint(ctx, -16, 16, [[0, "#f5ffff"], [.30, color], [1, "#576889"]]);
+  keyProfile(ctx, -14, 17, 26, 32, "#101a32", color, 2);
+  keyProfile(ctx, -15, 12, 25, 31, surface, "#f0fcff", 1.3);
+  if (tail) {
+    bar(ctx, -11, -4, 22, 8, "#172541");
+  } else {
+    bar(ctx, -13, -5.5, 26, 2.8, "#172541");
+    bar(ctx, -13, 1, 26, 2.8, "#172541");
+  }
 }
 
 function drawSpark(ctx, color) {
@@ -95,18 +133,22 @@ function drawSpark(ctx, color) {
 
 export function buildLaneSprites(colors) {
   return colors.map(color => ({
-    note: texture(ctx => drawNote(ctx, color)),
-    target: texture(ctx => drawTarget(ctx, color)),
-    aura: texture(ctx => {
+    note: texture(108, 82, ctx => drawNote(ctx, color)),
+    slide: texture(72, 44, ctx => drawSlideCap(ctx, color, false)),
+    tail: texture(72, 44, ctx => drawSlideCap(ctx, color, true)),
+    target: texture(74, 46, ctx => drawTarget(ctx, color, false)),
+    targetLit: texture(74, 46, ctx => drawTarget(ctx, color, true)),
+    aura: texture(148, 98, ctx => {
       ctx.scale(1, .65);
       glow(ctx, color, 74, color);
     }),
-    flash: texture(ctx => drawSpark(ctx, color))
+    flash: texture(152, 126, ctx => drawSpark(ctx, color))
   }));
 }
 
 export function drawLaneSprite(ctx, sprite, x, y, radius, verticalScale = 1) {
-  const half = radius * (center / 32);
-  const depth = half * verticalScale;
-  ctx.drawImage(sprite, x - half, y - depth, half * 2, depth * 2);
+  const scale = radius / 32;
+  const width = sprite.width * scale;
+  const height = sprite.height * scale * verticalScale;
+  ctx.drawImage(sprite, x - width / 2, y - height / 2, width, height);
 }
