@@ -1,5 +1,6 @@
-import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=6";
-import { RhythmGame } from "./game.js?v=6";
+import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=7";
+import { RhythmGame } from "./game.js?v=7";
+import { LobbyMusic } from "./sound.js?v=7";
 
 const item = id => document.getElementById(id);
 const form = item("setup");
@@ -14,6 +15,7 @@ const errorMessage = item("source-error");
 const home = item("home");
 const gameScreen = item("game");
 const game = new RhythmGame();
+const lobbyMusic = new LobbyMusic(item("lobby-music"), item("lobby-music-button"));
 const fullscreenButton = item("fullscreen-button");
 fullscreenButton.hidden = !document.fullscreenEnabled || !gameScreen.requestFullscreen;
 let fullscreenNoticeTimer = null;
@@ -181,6 +183,7 @@ async function generate(demo) {
 }
 
 function showGame(track) {
+  lobbyMusic.setInLobby(false);
   history.pushState({ rhythmGame: true }, "", "#play");
   document.body.classList.add("playing-view");
   home.hidden = true;
@@ -197,6 +200,7 @@ function showHome() {
   gameScreen.hidden = true;
   home.hidden = false;
   document.body.classList.remove("playing-view");
+  lobbyMusic.setInLobby(true);
   returnFocus.focus();
 }
 

@@ -18,9 +18,10 @@ function latestBefore(events, time, timestamp) {
 }
 
 export class StageEffects {
-  constructor(context, bloom, motion) {
+  constructor(context, bloom, light, motion) {
     this.ctx = context;
     this.bloom = bloom;
+    this.light = light;
     this.motion = motion;
     this.setTiming();
     this.reset();
@@ -37,7 +38,9 @@ export class StageEffects {
     this.streakBurst = -Infinity;
     this.streakPower = 0;
     this.bloomOpacity = -1;
+    this.lightOpacity = -1;
     this.setBloom(0, 0);
+    this.setLight(.22);
   }
 
   resize(width, height, horizon) {
@@ -78,11 +81,18 @@ export class StageEffects {
     this.bloom.style.transform = "scale(" + (1.02 + spread * .105).toFixed(3) + ")";
   }
 
+  setLight(opacity) {
+    if (!this.light || Math.abs(this.lightOpacity - opacity) < .02) return;
+    this.lightOpacity = opacity;
+    this.light.style.opacity = opacity.toFixed(3);
+  }
+
   draw(time, now) {
     this.wave = 0;
     this.pulse = 0;
     if (!this.width || this.motion.matches || time < 0) {
       this.setBloom(0, 0);
+      this.setLight(.22);
       return;
     }
 
@@ -99,6 +109,7 @@ export class StageEffects {
     const energy = Math.max(peak, streak * .84);
     const spread = Math.max(opening * .39, energy);
     this.setBloom(unit(energy * .78 + opening * .19 + beat * .12), spread);
+    this.setLight(unit(.22 + beat * .69 + opening * .17 + energy * .19));
 
     const ctx = this.ctx;
     ctx.save();
