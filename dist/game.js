@@ -1,6 +1,8 @@
-import { difficulties } from "./audio.js?v=9";
-import { GameField, laneAt } from "./game-field.js?v=9";
-import { HitSounds } from "./sound.js?v=9";
+import { difficulties } from "./audio.js?v=10";
+import { GameField, laneAt } from "./game-field.js?v=10";
+import { HitSounds } from "./sound.js?v=10";
+import { audibleTime, timingOffset } from "./timing.js?v=10";
+import { finishRecord, readBest } from "./records.js?v=10";
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
 const formatNumber = new Intl.NumberFormat("ru");
 const percent = value => Math.round(value * 100) + "%";
@@ -8,7 +10,9 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const item = id => document.getElementById(id);
 
 export class RhythmGame {
-  constructor() {
+  constructor(onStart) {
+    this.onStart = onStart;
+    this.timingOffset = timingOffset();
     this.phase = "idle";
     this.stage = item("stage");
     this.field = new GameField(item("chart-canvas"), this.stage);
@@ -22,6 +26,7 @@ export class RhythmGame {
     this.resize = this.resize.bind(this);
 
     new ResizeObserver(this.resize).observe(this.stage);
+    window.addEventListener("resize", this.resize);
     item("start-button").addEventListener("click", () => this.start());
     item("replay-button").addEventListener("click", () => this.start());
     item("pause-button").addEventListener("click", () => this.pause());
@@ -29,7 +34,7 @@ export class RhythmGame {
     controls.addEventListener("pointerdown", event => {
       if (event.button !== 0 || this.phase !== "playing") return;
       event.preventDefault();
-      const position = this.field.lanePosition(event.clientX);
+      const position = this.field.lanePosition(event.clientX, event.clientY);
       const lane = clamp(Math.round(position), 0, 3);
       controls.setPointerCapture(event.pointerId);
       this.pointers.set(event.pointerId, position);
@@ -38,7 +43,7 @@ export class RhythmGame {
     });
     controls.addEventListener("pointermove", event => {
       if (!this.pointers.has(event.pointerId)) return;
-      this.pointers.set(event.pointerId, this.field.lanePosition(event.clientX));
+      this.pointers.set(event.pointerId, this.field.lanePosition(event.clientX, event.clientY));
       this.lightPads();
     });
     controls.addEventListener("pointerup", event => this.releasePointer(event, false));
@@ -96,6 +101,7 @@ export class RhythmGame {
   reset() {
     this.notes = this.track.notes.map(note => ({ ...note, judged: false }));
     this.missCursor = 0;
+    this.recentMisses = [-Infinity, -Infinity, -Infinity, -Infinity];
     this.displayProgress = -1;
     this.score = 0;
     this.good = 0;
@@ -108,7 +114,7 @@ export class RhythmGame {
     this.feedbackUntil = 0;
     this.clearInputs();
     this.field.reset();
-    item("judgement").textContent = "";
+    this.clearFeedback();
     this.updateScores();
     this.updateProgress(0);
   }
@@ -126,6 +132,10 @@ export class RhythmGame {
     item("ready-detail").textContent = this.settings.stars + " · " + this.settings.name + " · " + formatNumber.format(this.notes.length) + " нот";
     item("ready-hint").hidden = paused || !this.slideCount;
     item("start-button").querySelector("span").textContent = paused ? "Продолжить" : "Начать игру";
+    const best = paused ? null : readBest(this.track);
+    const record = item("ready-record");
+    record.hidden = !best;
+    record.textContent = best ? "Твой рекорд " + formatNumber.format(best.score) : "";
     if (focus) item("start-button").focus({ preventScroll: true });
   }
 
@@ -149,7 +159,9 @@ export class RhythmGame {
     item("play-error").hidden = true;
     try {
       const ctx = this.context || this.makeContext();
-      await ctx.resume();
+      const audioReady = ctx.resume();
+      this.onStart?.();
+      await audioReady;
       if (this.phase !== "starting" || track !== this.track) return;
       if (previous !== "paused") this.reset();
       const delay = previous === "paused" ? 2 : 3;
@@ -189,29 +201,22 @@ export class RhythmGame {
   }
 
   playedTime() {
-    const ctx = this.context;
-    const timestamp = ctx.getOutputTimestamp?.();
-    const predicted = timestamp?.contextTime + (performance.now() - timestamp?.performanceTime) / 1000;
-    const lag = clamp(ctx.outputLatency || ctx.baseLatency || 0, 0, .18);
-    const audible = timestamp?.contextTime > 0 && Math.abs(ctx.currentTime - predicted) < .3
-      ? Math.min(predicted, ctx.currentTime)
-      : ctx.currentTime - lag;
-    return this.offset + audible - this.sourceStart;
+    return this.offset + audibleTime(this.context) - this.sourceStart;
   }
 
   pause(focus = true) {
     if (!["countdown", "playing"].includes(this.phase)) return;
     const time = this.playedTime();
-    if (time >= this.track.duration) {
+    if (time >= this.track.duration + Math.max(0, this.timingOffset)) {
       this.finish();
       return;
     }
-    const resumeTime = this.slide ? Math.max(0, this.slide.note.time - .23) : time;
+    const resumeTime = this.slide ? Math.max(0, this.slide.note.time + this.timingOffset - .23) : time;
     this.offset = clamp(resumeTime, this.offset, Math.max(0, this.track.duration - .01));
     this.clearInputs();
     this.field.reset();
     this.stopAudio();
-    item("judgement").textContent = "";
+    this.clearFeedback();
     this.showReady(true, focus);
     this.draw(this.offset);
   }
@@ -231,16 +236,17 @@ export class RhythmGame {
         item("countdown").hidden = true;
         item("combo").hidden = this.combo < 2;
       }
-      this.updateSlide(time);
-      this.markMisses(time);
+      const chartTime = time - this.timingOffset;
+      this.updateSlide(chartTime);
+      this.markMisses(chartTime);
       this.updateProgress(time);
-      if (time >= this.track.duration) {
+      if (time >= this.track.duration + Math.max(0, this.timingOffset)) {
         this.finish();
         return;
       }
     }
     if (this.feedbackUntil && performance.now() > this.feedbackUntil) {
-      item("judgement").textContent = "";
+      this.clearFeedback();
       this.feedbackUntil = 0;
     }
     this.draw(time);
@@ -265,7 +271,7 @@ export class RhythmGame {
 
   press(lane, input) {
     if (this.phase !== "playing") return;
-    const time = this.playedTime();
+    const time = this.playedTime() - this.timingOffset;
     this.updateSlide(time);
     this.markMisses(time);
     this.field.illuminate(lane);
@@ -274,30 +280,44 @@ export class RhythmGame {
       return;
     }
 
+    const hitWindow = this.settings.window;
+    const feedbackWindow = hitWindow + .13;
     let closest;
-    let best = this.settings.window;
+    let otherLane = false;
+    let delta = feedbackWindow;
     for (let i = this.missCursor; i < this.notes.length; i++) {
       const note = this.notes[i];
-      if (note.time > time + this.settings.window) break;
-      const delta = Math.abs(note.time - time);
-      if (!note.judged && note.lane === lane && delta <= best) {
+      const difference = time - note.time;
+      if (difference < -feedbackWindow) break;
+      if (note.judged) continue;
+      if (note.lane !== lane && Math.abs(difference) <= hitWindow) otherLane = true;
+      if (note.lane === lane && Math.abs(difference) <= Math.abs(delta)) {
         closest = note;
-        best = delta;
+        delta = difference;
       }
     }
-    if (!closest || (closest.path && !input)) {
+    if (!closest || Math.abs(delta) > hitWindow) {
       this.hitSounds.play();
+      const late = time - this.recentMisses[lane];
+      if (late < Math.abs(delta)) delta = late;
+      if (closest || late < feedbackWindow) {
+        this.feedback(delta < 0 ? "Рано" : "Поздно", "#ffceb9", this.timingText(delta, false));
+      } else if (otherLane) this.feedback("Другая дорожка", "#ffceb9");
       return;
     }
 
-    const perfect = best <= this.settings.window * .46;
+    const perfect = Math.abs(delta) <= hitWindow * .46;
     if (closest.path) {
+      if (!input) {
+        this.feedback("Удерживай клавишу", "#e1c2ff");
+        return;
+      }
       this.hitSounds.play(true);
-      this.slide = { note: closest, input, perfect, offPathSince: null, lastLane: lane };
+      this.slide = { note: closest, input, perfect, delta, offPathSince: null, lastLane: lane };
       this.field.illuminate(lane, 8);
       this.feedback("Удерживай", "#e1c2ff");
     } else {
-      this.hit(closest, perfect, lane);
+      this.hit(closest, perfect, lane, delta);
     }
   }
 
@@ -335,16 +355,16 @@ export class RhythmGame {
     const position = this.pointers.get(event.pointerId);
     if (position === undefined) return;
     if (this.slide?.input.pointer === event.pointerId) {
-      if (cancelled) this.failSlide();
+      if (cancelled) this.failSlide("Удержание прервано");
       else {
-        const time = this.playedTime();
+        const time = this.playedTime() - this.timingOffset;
         const end = this.slide.note.path.at(-1);
-        const finalPosition = this.field.lanePosition(event.clientX);
+        const finalPosition = this.field.lanePosition(event.clientX, event.clientY);
         this.pointers.set(event.pointerId, finalPosition);
         this.updateSlide(time);
         if (this.slide) {
           if (time >= end.time - .065 && Math.abs(finalPosition - end.lane) <= .64) this.completeSlide();
-          else this.failSlide();
+          else this.failSlide(time < end.time - .065 ? "Отпущен раньше конца" : "Конец на другой дорожке");
         }
       }
     }
@@ -353,22 +373,22 @@ export class RhythmGame {
   }
 
   completeSlide() {
-    const { note, perfect } = this.slide;
+    const { note, perfect, delta } = this.slide;
     this.slide = null;
-    this.hit(note, perfect, note.path.at(-1).lane);
+    this.hit(note, perfect, note.path.at(-1).lane, delta);
   }
 
-  failSlide() {
+  failSlide(reason = "Удержание ушло с маршрута") {
     const { note } = this.slide;
     this.slide = null;
     note.judged = true;
     this.misses++;
     this.combo = 0;
-    this.feedback("Мимо", "#d0b5ec");
+    this.feedback("Слайд сорван", "#ffceb9", reason);
     this.updateScores();
   }
 
-  hit(note, perfect, lane) {
+  hit(note, perfect, lane, delta) {
     this.hitSounds.play(true, perfect);
     note.judged = true;
     this.combo++;
@@ -379,7 +399,8 @@ export class RhythmGame {
     this.score += (note.path ? Math.round(points * 1.45) : points) + Math.min((this.combo - 1) * 12, 360);
     this.field.illuminate(lane, note.path ? 26 : perfect ? 21 : 10);
     if (this.combo % 10 === 0) this.field.celebrate(lane, this.combo);
-    this.feedback(perfect ? "Идеально" : "Хорошо", perfect ? "#ffa9dc" : "#9decf5");
+    this.feedback(perfect ? "Идеально" : "Хорошо", perfect ? "#ffa9dc" : "#9decf5",
+      perfect ? "" : this.timingText(delta));
     this.updateScores();
   }
 
@@ -391,20 +412,32 @@ export class RhythmGame {
       this.missCursor++;
       if (note.judged) continue;
       note.judged = true;
+      this.recentMisses[note.lane] = note.time;
       this.misses++;
       this.combo = 0;
       changed = true;
     }
     if (changed) {
       this.updateScores();
-      if (!all && this.feedbackUntil + 50 < performance.now()) this.feedback("Мимо", "#d0b5ec");
+      if (!all && this.feedbackUntil + 50 < performance.now()) this.feedback("Пропуск", "#d0b5ec");
     }
   }
 
-  feedback(label, color) {
+  timingText(delta, withDirection = true) {
+    const side = delta < 0 ? "Рано" : "Поздно";
+    return (withDirection ? side + " · " : "") + Math.round(Math.abs(delta) * 1000) + " мс";
+  }
+
+  clearFeedback() {
+    item("judgement").textContent = "";
+    item("judgement-detail").textContent = "";
+  }
+
+  feedback(label, color, detail = "") {
     const judgement = item("judgement");
     judgement.textContent = label;
     judgement.style.color = color;
+    item("judgement-detail").textContent = detail;
     this.feedbackUntil = performance.now() + 420;
   }
 
@@ -472,26 +505,42 @@ export class RhythmGame {
     this.updateProgress(this.track.duration);
     item("pause-button").disabled = true;
     item("countdown").hidden = true;
-    item("judgement").textContent = "";
+    this.clearFeedback();
     item("ready-screen").hidden = true;
     item("stage-overlay").hidden = false;
     item("results-screen").hidden = false;
     item("result-score").textContent = formatNumber.format(this.score);
     item("result-accuracy").textContent = this.accuracy();
     item("result-combo").textContent = formatNumber.format(this.maxCombo);
+    this.showRecord();
     item("result-hits").textContent = "Попадания — " + formatNumber.format(this.perfect + this.good) + " из " + formatNumber.format(this.notes.length);
     this.draw(this.track.duration);
     item("replay-button").focus({ preventScroll: true });
+  }
+
+  showRecord() {
+    const { best, improved, saved } = finishRecord(this.track, this.score);
+    const summary = item("result-record");
+    summary.hidden = !best && !this.score;
+    summary.classList.toggle("record-improved", improved);
+    if (!saved && this.score) summary.textContent = "Браузер не сохранил рекорд.";
+    else if (improved) summary.textContent = "Новый личный рекорд · " + formatNumber.format(best.score);
+    else if (best) {
+      const gap = formatNumber.format(Math.max(0, best.score - this.score));
+      summary.textContent = this.score === best.score
+        ? "Повторён личный рекорд · " + formatNumber.format(best.score)
+        : "Рекорд " + formatNumber.format(best.score) + " · До него " + gap;
+    }
   }
 
   resize() {
     if (!this.track) return;
     this.field.resize();
     const stateTime = { ready: -.9, paused: this.offset, finished: this.track.duration };
-    this.draw(stateTime[this.phase] ?? this.offset);
+    this.draw(stateTime[this.phase] ?? (this.phase === "playing" ? this.playedTime() : this.offset));
   }
 
   draw(time) {
-    this.field.draw(this.notes, this.missCursor, time, this.settings.approach, this.slide?.note, this.phase === "playing");
+    this.field.draw(this.notes, this.missCursor, time - this.timingOffset, this.settings.approach, this.slide?.note, this.phase === "playing");
   }
 }

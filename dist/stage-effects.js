@@ -18,10 +18,11 @@ function latestBefore(events, time, timestamp) {
 }
 
 export class StageEffects {
-  constructor(context, bloom, light, motion) {
+  constructor(context, bloom, light, shade, motion) {
     this.ctx = context;
     this.bloom = bloom;
     this.light = light;
+    this.shade = shade;
     this.motion = motion;
     this.setTiming();
     this.reset();
@@ -39,8 +40,10 @@ export class StageEffects {
     this.streakPower = 0;
     this.bloomOpacity = -1;
     this.lightOpacity = -1;
+    this.shadeOpacity = -1;
     this.setBloom(0, 0);
     this.setLight(.22);
+    this.setShade(0);
   }
 
   resize(width, height, horizon) {
@@ -87,9 +90,16 @@ export class StageEffects {
     this.light.style.opacity = opacity.toFixed(3);
   }
 
-  draw(time, now) {
+  setShade(opacity) {
+    if (!this.shade || Math.abs(this.shadeOpacity - opacity) < .02) return;
+    this.shadeOpacity = opacity;
+    this.shade.style.opacity = opacity.toFixed(3);
+  }
+
+  draw(time, now, load) {
     this.wave = 0;
     this.pulse = 0;
+    this.setShade(load * .58);
     if (!this.width || this.motion.matches || time < 0) {
       this.setBloom(0, 0);
       this.setLight(.22);
@@ -106,18 +116,19 @@ export class StageEffects {
     const peak = age >= 0 ? smooth(age / .24) * (1 - smooth((age - .85) / 2.6)) : 0;
     const streakAge = (now - this.streakBurst) / 1000;
     const streak = smooth(streakAge / .13) * (1 - smooth((streakAge - .16) / 1.19)) * this.streakPower;
-    const energy = Math.max(peak, streak * .84);
-    const spread = Math.max(opening * .39, energy);
-    this.setBloom(unit(energy * .78 + opening * .19 + beat * .12), spread);
-    this.setLight(unit(.22 + beat * .69 + opening * .17 + energy * .19));
+    const calm = 1 - load * .75;
+    const energy = Math.max(peak * .60 * calm, streak);
+    const spread = Math.max(opening * .32 * calm, energy);
+    this.setBloom(unit(energy * .66 + (opening * .16 + beat * .12) * calm), spread);
+    this.setLight(unit(.16 + (beat * .49 + opening * .13) * calm + energy * .19));
 
     const ctx = this.ctx;
     ctx.save();
-    this.drawCore(time, beat, opening, energy);
+    this.drawCore(time, beat * calm, opening * calm, energy * (1 - load * .50));
     if (spread > .025) this.drawWings(time, spread, beat);
-    if (age >= 0 && age < 2.1) {
-      this.drawSurge(age, 1);
-      this.drawPrisms(age, 1);
+    if (age >= 0 && age < 2.1 && load < .75) {
+      this.drawSurge(age, .50 * calm);
+      this.drawPrisms(age, .56 * calm);
     }
     if (streakAge < 1.24) {
       this.drawSurge(streakAge, this.streakPower);
@@ -125,8 +136,8 @@ export class StageEffects {
     }
     ctx.restore();
 
-    if (age >= 0 && age < 1.1) this.wave = .012 + age / 1.1;
-    else if (streakAge < 1.1) this.wave = .012 + streakAge / 1.1;
+    if (streakAge < 1.1) this.wave = .012 + streakAge / 1.1;
+    else if (load < .42 && age >= 0 && age < 1.1) this.wave = .012 + age / 1.1;
   }
 
   drawCore(time, beat, opening, energy) {

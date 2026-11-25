@@ -1,7 +1,14 @@
 const difficultySettings = {
-  1: { gap: .41, density: 1.5, minimum: .41 },
-  2: { gap: .25, density: 2.65, minimum: .29 },
-  3: { gap: .15, density: 4.4, minimum: .22 }
+  1: { gap: .40, density: 1.55, minimum: .50, slideGap: 3.6, slideLegs: 1,
+    patterns: [[1, 2, 1, 2], [0, 2, 1, 3], [1, 3, 0, 2]] },
+  2: { gap: .27, density: 2.45, minimum: .40, slideGap: 2.9, slideLegs: 1,
+    patterns: [[0, 2, 1, 3], [3, 1, 2, 0], [1, 3, 1, 2]] },
+  3: { gap: .20, density: 3.30, minimum: .36, slideGap: 2.4, slideLegs: 2, chordGap: 3.2,
+    patterns: [[0, 1, 3, 2], [3, 2, 0, 1], [0, 3, 1, 2]] },
+  4: { gap: .16, density: 4.05, minimum: .25, slideGap: 1.9, slideLegs: 2, chordGap: 2.4,
+    patterns: [[0, 1, 2, 3], [3, 2, 1, 0], [0, 3, 1, 2]] },
+  5: { gap: .13, density: 4.85, minimum: .21, slideGap: 1.65, slideLegs: 3, chordGap: 1.7,
+    patterns: [[0, 2, 3, 1, 2, 0, 1, 3], [3, 2, 0, 1, 3, 1, 0, 2], [0, 1, 2, 3, 2, 1, 3, 0]] }
 };
 
 self.addEventListener("message", ({ data }) => {
@@ -20,6 +27,8 @@ function makeChart(samples, sampleRate, difficulty) {
   const frames = Math.floor(samples.length / step);
   const flux = new Float32Array(frames);
   const energy = new Float32Array(frames);
+  const bodyEnergy = new Float32Array(frames);
+  const bassRise = new Float32Array(frames);
   const lowAlpha = 1 - Math.exp(-2 * Math.PI * 145 / sampleRate);
   const midAlpha = 1 - Math.exp(-2 * Math.PI * 1350 / sampleRate);
   let low = 0;
@@ -28,6 +37,7 @@ function makeChart(samples, sampleRate, difficulty) {
   let previousMid = 0;
   let previousHigh = 0;
   let peakEnergy = 0;
+  let peakBody = 0;
   let background = 0;
 
   for (let frame = 0, i = 0; frame < frames; frame++) {
@@ -45,10 +55,13 @@ function makeChart(samples, sampleRate, difficulty) {
     energy[frame] = Math.sqrt((bass + body + treble) / step);
     peakEnergy = Math.max(peakEnergy, energy[frame]);
 
+    bodyEnergy[frame] = Math.sqrt(body / step);
+    peakBody = Math.max(peakBody, bodyEnergy[frame]);
     const lo = Math.log1p(110 * Math.sqrt(bass / step));
     const mi = Math.log1p(125 * Math.sqrt(body / step));
     const hi = Math.log1p(145 * Math.sqrt(treble / step));
-    const change = 1.35 * Math.max(0, lo - previousLow)
+    bassRise[frame] = 1.35 * Math.max(0, lo - previousLow);
+    const change = bassRise[frame]
       + .9 * Math.max(0, mi - previousMid)
       + .7 * Math.max(0, hi - previousHigh);
     background += (change - background) * .033;
@@ -69,11 +82,13 @@ function makeChart(samples, sampleRate, difficulty) {
     if (energy[i] < peakEnergy * .012 || strength < .0005) continue;
     if (strength <= flux[i - 1] || strength <= flux[i - 2] || strength < flux[i + 1] || strength < flux[i + 2]) continue;
     const time = i * frameTime + frameTime * .45;
-    peaks.push({ time, strength });
+    const bass = Math.max(bassRise[i - 1], bassRise[i], bassRise[i + 1]);
+    const priority = strength + bass * .38;
+    peaks.push({ time, strength, priority });
     maxStrength = Math.max(maxStrength, strength);
   }
 
-  // Enforce spacing across section boundaries while letting quieter sections supply notes.
+  // Local energy and a shared spacing budget preserve rests between musical phrases.
   const occupied = new Uint8Array(frames);
   const gapFrames = Math.ceil(settings.gap / frameTime);
   const accepted = [];
@@ -83,13 +98,20 @@ function makeChart(samples, sampleRate, difficulty) {
     const end = Math.min(duration, section + sectionLength);
     const candidates = [];
     while (cursor < peaks.length && peaks[cursor].time < end) candidates.push(peaks[cursor++]);
-    candidates.sort((left, right) => right.strength - left.strength);
-    const limit = Math.max(1, Math.round(settings.density * (end - section)));
-    const benchmark = candidates[Math.min(3, Math.max(0, candidates.length - 1))]?.strength ?? 0;
-    const threshold = Math.max(maxStrength * .025, benchmark * settings.minimum);
+    let intensity = 0;
+    const firstFrame = Math.floor(section / frameTime);
+    const lastFrame = Math.min(frames, Math.ceil(end / frameTime));
+    for (let i = firstFrame; i < lastFrame; i++) intensity += energy[i];
+    intensity /= Math.max(1, lastFrame - firstFrame) * peakEnergy;
+    if (intensity < .015) continue;
+    candidates.sort((left, right) => right.priority - left.priority);
+    const activity = Math.min(1, .27 + intensity * 3.8);
+    const limit = Math.round(settings.density * (end - section) * activity);
+    const benchmark = candidates[0]?.priority ?? 0;
+    const threshold = Math.max(maxStrength * .041, benchmark * settings.minimum);
     let count = 0;
     for (const candidate of candidates) {
-      if (count >= limit || candidate.strength < threshold) break;
+      if (count >= limit || candidate.priority < threshold) break;
       const position = Math.round(candidate.time / frameTime);
       if (occupied[position]) continue;
       occupied.fill(1, Math.max(0, position - gapFrames + 1), position + gapFrames);
@@ -102,31 +124,49 @@ function makeChart(samples, sampleRate, difficulty) {
     for (let i = start; i < stop; i += Math.ceil(.58 / frameTime)) {
       if (!occupied[i] && energy[i] > peakEnergy * .10) {
         accepted.push({ time: i * frameTime, strength: 0 });
+        if (accepted.length >= 3) break;
       }
     }
   }
 
   accepted.sort((left, right) => left.time - right.time);
+  const notes = patternNotes(accepted, settings, maxStrength);
+  return {
+    notes: addSlides(notes, difficulty, settings, bodyEnergy, peakBody, frameTime),
+    ...stageTiming(peaks, maxStrength, energy, frameTime, duration)
+  };
+}
+
+function patternNotes(onsets, { patterns, chordGap }, maxStrength) {
   const notes = [];
-  const lanes = [0, 2, 1, 3];
-  let lastLane = -1;
   const lastUsed = [-Infinity, -Infinity, -Infinity, -Infinity];
-  accepted.forEach(({ time, strength }, index) => {
-    let lane = lanes[(index + Math.floor(time * 2.19) + Math.floor(index / 4)) % 4];
-    if (lane === lastLane) lane = (lane + 1 + index % 2) % 4;
-    if (time - lastUsed[lane] < .24) lane = lastUsed.indexOf(Math.min(...lastUsed));
-    notes.push({ time, lane });
+  let phrase = 0;
+  let slot = 0;
+  let lastLane = -1;
+  let lastChord = -Infinity;
+  for (let index = 0; index < onsets.length; index++) {
+    const { time, strength } = onsets[index];
+    let pattern = patterns[phrase % patterns.length];
+    if (slot === pattern.length || (slot > 0 && time - onsets[index - 1].time > .69)) {
+      pattern = patterns[++phrase % patterns.length];
+      slot = 0;
+    }
+    let lane = pattern[slot++];
+    if (lane === lastLane && time - lastUsed[lane] < .36) lane = (lane + 2) % 4;
+    const accent = strength / (maxStrength || 1);
+    notes.push({ time, lane, accent });
     lastUsed[lane] = time;
     lastLane = lane;
     const pair = (lane + 2) % 4;
-    const gapAhead = (accepted[index + 1]?.time ?? Infinity) - time;
-    if (difficulty === 3 && time - lastUsed[pair] > .38 && gapAhead > .21 && index % 6 === 2 && strength >= maxStrength * .38) {
-      notes.push({ time, lane: pair });
+    const gap = (onsets[index + 1]?.time ?? Infinity) - time;
+    if (chordGap && accent >= .51 && gap >= .155 &&
+        time - lastChord >= chordGap && time - lastUsed[pair] >= .245) {
+      notes.push({ time, lane: pair, accent });
       lastUsed[pair] = time;
+      lastChord = time;
     }
-  });
-
-  return { notes: addSlides(notes, difficulty), ...stageTiming(peaks, maxStrength, energy, frameTime, duration) };
+  }
+  return notes;
 }
 
 function stageTiming(onsets, strongest, energy, frameTime, duration) {
@@ -174,41 +214,37 @@ function stageTiming(onsets, strongest, energy, frameTime, duration) {
   return { accents, climaxes };
 }
 
-function addSlides(notes, difficulty) {
-  const interval = [0, 2.55, 2.02, 1.68][difficulty];
+function addSlides(notes, difficulty, settings, envelope, peakBody, step) {
   const result = [];
-  let nextSlideTime = 1.5;
+  let nextSlideTime = 1.34;
   let slideNumber = 0;
   for (let index = 0; index < notes.length; index++) {
-    const first = notes[index];
-    if (first.time < nextSlideTime || hasChord(notes, index)) {
-      result.push(first);
+    const { time, lane, accent } = notes[index];
+    const canHold = time >= nextSlideTime && accent >= .085 && !hasChord(notes, index);
+    const end = canHold ? sustainEnd(notes, index, difficulty <= 2 ? .40 : .31, .82, envelope, peakBody, step) : -1;
+    if (end < 0) {
+      result.push({ time, lane });
       continue;
     }
 
-    const middle = findEnd(notes, index, difficulty === 3 ? .29 : .42, .74);
-    if (middle < 0) {
-      result.push(first);
-      continue;
+    const hold = slideNumber % (difficulty === 1 ? 2 : 4) === 0;
+    let direction = hold ? 0 : lane === 0 ? 1 : lane === 3 ? -1 : slideNumber % 2 ? 1 : -1;
+    let nextLane = lane + direction;
+    const path = [{ time, lane }, { time: notes[end].time, lane: nextLane }];
+    index = end;
+
+    const legs = hold || slideNumber % 3 === 1 ? 1 : settings.slideLegs;
+    for (let leg = 1; leg < legs; leg++) {
+      const next = sustainEnd(notes, index, .27, .56, envelope, peakBody, step);
+      if (next < 0) break;
+      if (nextLane + direction < 0 || nextLane + direction > 3 || (difficulty === 5 && leg === 2)) direction *= -1;
+      nextLane += direction;
+      path.push({ time: notes[next].time, lane: nextLane });
+      index = next;
     }
 
-    const staying = slideNumber % (difficulty === 1 ? 2 : 3) === 0;
-    const path = [{ time: first.time, lane: first.lane }];
-    const step = staying ? 0 : first.lane === 0 ? 1 : first.lane === 3 ? -1 : slideNumber % 2 === 0 ? -1 : 1;
-    path.push({ time: notes[middle].time, lane: first.lane + step });
-    index = middle;
-
-    if (difficulty === 3 && !staying && slideNumber % 2 === 0) {
-      const end = findEnd(notes, middle, .28, .54);
-      if (end >= 0) {
-        const nextLane = first.lane + step * 2;
-        path.push({ time: notes[end].time, lane: nextLane >= 0 && nextLane <= 3 ? nextLane : first.lane });
-        index = end;
-      }
-    }
-
-    result.push({ ...first, path });
-    nextSlideTime = notes[index].time + interval;
+    result.push({ time, lane, path });
+    nextSlideTime = notes[index].time + settings.slideGap;
     slideNumber++;
   }
   return result;
@@ -218,13 +254,32 @@ function hasChord(notes, index) {
   return notes[index - 1]?.time === notes[index].time || notes[index + 1]?.time === notes[index].time;
 }
 
-function findEnd(notes, from, min, max) {
+function sustainEnd(notes, from, min, max, envelope, peakBody, step) {
+  const startTime = notes[from].time;
+  const startFrame = Math.floor(startTime / step);
+  let attack = 0;
+  for (let i = startFrame; i < Math.min(envelope.length, startFrame + 12); i++) attack = Math.max(attack, envelope[i]);
+  const threshold = Math.max(peakBody * .036, attack * .20);
+  const firstFrame = startFrame + 12;
+  let checked = firstFrame;
+  let held = 0;
+  let best = -1;
+  let strength = 0;
   for (let index = from + 1; index < notes.length; index++) {
-    const duration = notes[index].time - notes[from].time;
-    if (duration > max) break;
-    if (duration >= min && !hasChord(notes, index) && (notes[index + 1]?.time ?? Infinity) - notes[index].time >= .12) {
-      return index;
+    const duration = notes[index].time - startTime;
+    if (duration > max || hasChord(notes, index)) break;
+    if (duration < min || (notes[index + 1]?.time ?? Infinity) - notes[index].time < .12) continue;
+    const lastFrame = Math.floor(notes[index].time / step);
+    while (checked < lastFrame && checked < envelope.length) {
+      if (envelope[checked++] >= threshold) held++;
+    }
+    const coverage = held / Math.max(1, checked - firstFrame);
+    if (coverage < .68) break;
+    const fit = coverage + notes[index].accent * .17 + duration * .15;
+    if (fit > strength) {
+      strength = fit;
+      best = index;
     }
   }
-  return -1;
+  return best;
 }

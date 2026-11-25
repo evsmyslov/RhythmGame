@@ -1,6 +1,7 @@
-import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=9";
-import { RhythmGame } from "./game.js?v=9";
-import { LobbyMusic } from "./sound.js?v=9";
+import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=10";
+import { RhythmGame } from "./game.js?v=10";
+import { LobbyMusic } from "./sound.js?v=10";
+import { bindCalibration } from "./timing.js?v=10";
 
 const item = id => document.getElementById(id);
 const form = item("setup");
@@ -14,11 +15,27 @@ const removeFile = item("remove-file");
 const errorMessage = item("source-error");
 const home = item("home");
 const gameScreen = item("game");
-const game = new RhythmGame();
+const game = new RhythmGame(enterLandscape);
 const lobbyMusic = new LobbyMusic(item("lobby-music"), item("lobby-music-button"));
 const fullscreenButton = item("fullscreen-button");
 fullscreenButton.hidden = !document.fullscreenEnabled || !gameScreen.requestFullscreen;
 let fullscreenNoticeTimer = null;
+let landscapeRequest;
+
+function enterLandscape() {
+  if (!gameScreen.classList.contains("mobile-play") || !screen.orientation?.lock || landscapeRequest) return;
+  landscapeRequest = lockLandscape().finally(() => { landscapeRequest = null; });
+}
+
+async function lockLandscape() {
+  try {
+    if (!standalone && !document.fullscreenElement && document.fullscreenEnabled && gameScreen.requestFullscreen) {
+      await gameScreen.requestFullscreen();
+    }
+    if (!gameScreen.hidden) await screen.orientation.lock("landscape");
+    if (gameScreen.hidden && document.fullscreenElement === gameScreen) await document.exitFullscreen();
+  } catch { /* The game layout rotates when the browser keeps the screen in portrait. */ }
+}
 
 fullscreenButton.addEventListener("click", async () => {
   const notice = item("fullscreen-notice");
@@ -26,7 +43,10 @@ fullscreenButton.addEventListener("click", async () => {
   clearTimeout(fullscreenNoticeTimer);
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
-    else await gameScreen.requestFullscreen();
+    else {
+      await gameScreen.requestFullscreen();
+      enterLandscape();
+    }
   } catch {
     notice.hidden = false;
     fullscreenNoticeTimer = setTimeout(() => { notice.hidden = true; }, 3600);
@@ -43,6 +63,30 @@ const homeHash = location.hash === "#play" ? "" : location.hash;
 let job = null;
 let file = null;
 let returnFocus = startGeneration;
+
+const difficultyHints = [
+  "Размеренный ритм и короткие удержания.",
+  "Чередование рук и переходы между дорожками.",
+  "Переборы, двойные ноты и слайды с поворотом.",
+  "Быстрые проходы по четырём дорожкам и двойные ноты.",
+  "Смены рук, короткие окна попаданий и длинные маршруты слайдов."
+];
+const difficultyControl = form.elements.namedItem("difficulty");
+function describeDifficulty() {
+  item("difficulty-detail").textContent = difficultyHints[Number(difficultyControl.value) - 1];
+}
+form.addEventListener("change", event => {
+  if (event.target.name === "difficulty") describeDifficulty();
+});
+describeDifficulty();
+
+bindCalibration(() => {
+  if (job || !gameScreen.hidden) return false;
+  lobbyMusic.setInLobby(false);
+}, offset => {
+  game.timingOffset = offset;
+  if (gameScreen.hidden) lobbyMusic.setInLobby(true);
+});
 
 if (location.hash === "#play") history.replaceState(null, "", location.pathname + location.search);
 
@@ -124,7 +168,7 @@ demoButton.addEventListener("click", () => generate(true));
 
 function setBusy(busy) {
   const controls = [startGeneration, demoButton, item("paste-button"), trackURL, fileButton,
-    removeFile, ...form.elements.namedItem("difficulty")];
+    removeFile, item("timing-button"), ...difficultyControl];
   controls.forEach(control => { control.disabled = busy; });
   item("generation-status").hidden = !busy;
 }
@@ -157,7 +201,7 @@ async function generate(demo) {
       return;
     }
   }
-  const difficulty = Number(form.elements.namedItem("difficulty").value);
+  const difficulty = Number(difficultyControl.value);
   const controller = new AbortController();
   job = controller;
   returnFocus = demo ? demoButton : startGeneration;
@@ -187,6 +231,9 @@ function showGame(track) {
   history.pushState({ rhythmGame: true }, "", "#play");
   document.body.classList.add("playing-view");
   home.hidden = true;
+  const mobile = matchMedia("(pointer: coarse)").matches || navigator.userAgentData?.mobile ||
+    (navigator.maxTouchPoints > 0 && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  gameScreen.classList.toggle("mobile-play", Boolean(mobile));
   gameScreen.hidden = false;
   window.scrollTo(0, 0);
   game.open(track);
@@ -196,6 +243,9 @@ function showHome() {
   if (gameScreen.hidden) return;
   game.close();
   item("fullscreen-notice").hidden = true;
+  if (gameScreen.classList.contains("mobile-play")) {
+    try { screen.orientation?.unlock?.(); } catch { /* Some browsers disallow unlocking. */ }
+  }
   if (document.fullscreenElement === gameScreen) document.exitFullscreen().catch(() => {});
   gameScreen.hidden = true;
   home.hidden = false;

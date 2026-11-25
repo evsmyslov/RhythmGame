@@ -6,7 +6,9 @@ const demoURL = new URL("./assets/neon-pulse.mp3", import.meta.url);
 export const difficulties = {
   1: { name: "Легко", stars: "★", approach: 1.95, window: .18 },
   2: { name: "Средне", stars: "★★", approach: 1.55, window: .145 },
-  3: { name: "Сложно", stars: "★★★", approach: 1.16, window: .118 }
+  3: { name: "Сложно", stars: "★★★", approach: 1.24, window: .118 },
+  4: { name: "Эксперт", stars: "★★★★", approach: 1.12, window: .101 },
+  5: { name: "Мастер", stars: "★★★★★", approach: 1.02, window: .09 }
 };
 
 export function streamingReference(value) {
@@ -66,6 +68,8 @@ export async function prepareTrack({ file, url, demo, difficulty }, signal, upda
   update(file ? "Читаем файл…" : "Загружаем аудио…");
   const bytes = file ? await readFile(file, video) : await download(demo ? demoURL : url, signal);
   signal.throwIfAborted();
+  const songId = demo ? "neon-pulse" : await fingerprint(bytes);
+  signal.throwIfAborted();
   update(video ? "Извлекаем звуковую дорожку…" : "Разбираем звук…");
 
   let buffer;
@@ -86,12 +90,26 @@ export async function prepareTrack({ file, url, demo, difficulty }, signal, upda
   if (!notes.length) throw new Error("В этом аудио не нашлось слышимых нот или ударов для уровня.");
   return {
     buffer,
+    songId,
     difficulty,
     notes,
     accents,
     climaxes,
     duration: buffer.duration
   };
+}
+
+async function fingerprint(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const size = Math.min(16384, bytes.length);
+  const sample = new Uint8Array(8 + size * 3);
+  new DataView(sample.buffer).setFloat64(0, bytes.length);
+  const middle = Math.floor((bytes.length - size) / 2);
+  sample.set(bytes.subarray(0, size), 8);
+  sample.set(bytes.subarray(middle, middle + size), 8 + size);
+  sample.set(bytes.subarray(bytes.length - size), 8 + size * 2);
+  const digest = await crypto.subtle.digest("SHA-256", sample);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function readFile(file, video) {
@@ -159,7 +177,7 @@ function scanAudio(buffer, difficulty, signal) {
   }
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./chart-worker.js?v=9", import.meta.url));
+    const worker = new Worker(new URL("./chart-worker.js?v=10", import.meta.url));
     const cancel = () => finish(reject, signal.reason);
     function finish(settle, data) {
       worker.terminate();
