@@ -1,11 +1,12 @@
-import { StageEffects } from "./stage-effects.js?v=13";
-import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=13";
+import { StageEffects } from "./stage-effects.js?v=14";
+import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=14";
 
-import { trackPalette } from "./palette.js?v=13";
+import { trackPalette } from "./palette.js?v=14";
 
 const laneCount = 4;
 const tau = Math.PI * 2;
 const clamp = (number, min, max) => Math.max(min, Math.min(max, number));
+const celebrationLengths = [0, 350, 480, 620, 780];
 
 function fillRibbon(ctx, sections, width, color) {
   const first = sections[0];
@@ -62,6 +63,7 @@ export class GameField {
     this.sparks = [];
     this.ripples = [];
     this.impacts = [];
+    this.celebration = null;
     this.visibleTaps = [];
     this.visibleSlides = [];
     this.slideFades = [];
@@ -155,42 +157,32 @@ export class GameField {
     this.ripples.push({ lane, born: now, color, size: 1.4 + power / 21 });
     if (power >= 18) this.ripples.push({ lane, born: now + 64, color: this.palette.lanes[(nearest + 2) % laneCount], size: 2.25 });
     this.impacts.push({ lane, born: now, sprite: this.laneSprites[nearest].flash, power: Math.min(1, power / 20) });
-    this.scatter(lane, power, now, false);
+    this.scatter(lane, Math.ceil(power * .55), now);
   }
 
   celebrate(lane, combo, tier) {
     if (!this.width || this.motion.matches) return;
     const now = performance.now();
     this.effects.celebrate(now, tier, combo);
-    const nearest = clamp(Math.round(lane), 0, 3);
-    const first = tier === 1 ? nearest : 0;
-    const last = tier === 1 ? nearest : laneCount - 1;
-    for (let i = first; i <= last; i++) {
-      const delay = Math.abs(i - lane) * 44;
-      this.ripples.push({ lane: i, born: now + delay, color: this.palette.lanes[i], size: 1.7 + tier * .55 });
-    }
-    this.scatter(lane, 7 + tier * 8, now, tier > 1);
-    if (tier >= 3) {
-      for (const edge of [0, 3]) this.scatter(edge, tier === 4 ? 14 : 7, now, true);
-    }
+    this.celebration = { lane, nearest: clamp(Math.round(lane), 0, 3), born: now, tier };
   }
 
   fadeSlide(note, time, active) {
     this.slideFades.push({ note, time, active, born: performance.now() });
   }
 
-  scatter(lane, count, now, celebration) {
+  scatter(lane, count, now) {
     const color = this.palette.lanes[clamp(Math.round(lane), 0, 3)];
     for (let i = 0; i < count; i++) {
       const angle = -Math.PI + Math.random() * Math.PI;
-      const speed = (celebration ? 120 : 58) + Math.random() * (celebration ? 235 : 152);
+      const speed = 58 + Math.random() * 152;
       this.sparks.push({
-        lane, color: celebration || i % 3 === 0 ? this.palette.lanes[i % laneCount] : color,
+        lane, color: i % 3 === 0 ? this.palette.lanes[i % laneCount] : color,
         born: now, dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed - 12,
-        size: 1.1 + Math.random() * 2.4, life: .25 + Math.random() * (celebration ? .61 : .30)
+        size: 1.1 + Math.random() * 2.4, life: .25 + Math.random() * .30
       });
     }
-    if (this.sparks.length > 108) this.sparks.splice(0, this.sparks.length - 108);
+    if (this.sparks.length > 48) this.sparks.splice(0, this.sparks.length - 48);
   }
 
   draw(notes, cursor, time, approach, slide, musicPlaying) {
@@ -251,6 +243,7 @@ export class GameField {
     for (const note of taps) this.drawHead(note.lane, position(note.time));
     ctx.restore();
     this.drawEffects(now);
+    this.drawCelebration(now);
   }
 
   drawHighway(now) {
@@ -468,6 +461,42 @@ export class GameField {
     ctx.globalAlpha = (1 - age) ** 2.35 * impact.power * (1 - this.visualLoad * .23);
     const radius = this.targetRadius * (.88 + age * .88);
     drawLaneSprite(ctx, impact.sprite, this.x(impact.lane), this.strike - 2, radius, .85);
+  }
+
+  drawCelebration(now) {
+    if (!this.celebration || this.motion.matches) return;
+    const { lane, nearest, born, tier } = this.celebration;
+    const elapsed = now - born;
+    const duration = celebrationLengths[tier];
+    if (elapsed >= duration) {
+      this.celebration = null;
+      return;
+    }
+    const ctx = this.ctx;
+    const progress = elapsed / duration;
+    const radius = this.targetRadius;
+    ctx.save();
+    const first = tier === 1 ? nearest : 0;
+    const last = tier === 1 ? nearest : laneCount - 1;
+    for (let i = first; i <= last; i++) {
+      const ring = (elapsed - Math.abs(i - lane) * 38) / (duration * .88);
+      if (ring < 0 || ring >= .91) continue;
+      ctx.globalAlpha = (1 - ring) ** 1.6 * (.68 + tier * .08);
+      drawLaneSprite(ctx, this.laneSprites[i].ring, this.x(i), this.strike, radius * (.89 + ring * (1.9 + tier * .34)));
+    }
+
+    const rise = 1 - (1 - progress) ** 2;
+    ctx.globalAlpha = (1 - progress) ** 1.45;
+    drawLaneSprite(ctx, this.laneSprites[nearest].celebration, this.x(lane), this.strike - rise * radius,
+      radius * (.71 + rise * (.67 + tier * .115)));
+    if (tier === 4) {
+      ctx.globalAlpha *= .65;
+      for (const edge of [0, laneCount - 1]) {
+        drawLaneSprite(ctx, this.laneSprites[edge].celebration, this.x(edge), this.strike - rise * radius * .8,
+          radius * (.67 + rise * 1.18));
+      }
+    }
+    ctx.restore();
   }
 
   drawEffects(now) {

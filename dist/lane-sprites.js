@@ -1,6 +1,6 @@
 const tau = Math.PI * 2;
 
-function texture(width, height, draw, resolution = 1) {
+export function texture(width, height, draw, resolution = 1) {
   const canvas = document.createElement("canvas");
   canvas.width = width * resolution;
   canvas.height = height * resolution;
@@ -100,6 +100,24 @@ function drawSpark(ctx, color) {
   ellipse(ctx, 0, -1, 21, 9.5, "#ffffffc9");
 }
 
+function drawCelebrationSparks(ctx, color) {
+  for (let i = 0; i < 16; i++) {
+    const angle = Math.PI * (1.06 + i / 17);
+    const radius = 29 + (i * 19 % 35);
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius * .62 + 13;
+    const size = 1.2 + (i % 4) * .55;
+    ctx.fillStyle = i % 3 ? color : "#f7ffff";
+    ctx.beginPath();
+    ctx.moveTo(x, y - size * 1.9);
+    ctx.lineTo(x + size, y);
+    ctx.lineTo(x, y + size * 1.9);
+    ctx.lineTo(x - size, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
 export function buildLaneSprites(colors) {
   return colors.map(color => ({
     note: texture(108, 66, ctx => drawNote(ctx, color), 2),
@@ -111,7 +129,9 @@ export function buildLaneSprites(colors) {
       ctx.scale(1, .65);
       glow(ctx, color, 74, color);
     }),
-    flash: texture(156, 118, ctx => drawSpark(ctx, color))
+    flash: texture(156, 118, ctx => drawSpark(ctx, color)),
+    ring: texture(70, 44, ctx => ellipse(ctx, 0, 0, 32, 19, null, color, 1.75)),
+    celebration: texture(140, 70, ctx => drawCelebrationSparks(ctx, color))
   }));
 }
 
