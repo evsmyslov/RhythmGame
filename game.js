@@ -1,8 +1,11 @@
-import { difficulties } from "./audio.js?v=11";
-import { GameField, laneAt } from "./game-field.js?v=11";
-import { HitSounds } from "./sound.js?v=11";
-import { audibleTime, timingOffset } from "./timing.js?v=11";
-import { finishRecord, readBest } from "./records.js?v=11";
+import { difficulties } from "./audio.js?v=12";
+import { GameField, laneAt } from "./game-field.js?v=12";
+import { HitSounds } from "./sound.js?v=12";
+import { audibleTime, timingOffset } from "./timing.js?v=12";
+import { finishRecord, readBest } from "./records.js?v=12";
+const checkpointLead = .06;
+const releaseLead = .055;
+const feedbackDuration = 560;
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
 const formatNumber = new Intl.NumberFormat("ru");
 const percent = value => Math.round(value * 100) + "%";
@@ -45,6 +48,7 @@ export class RhythmGame {
       if (!this.pointers.has(event.pointerId)) return;
       this.pointers.set(event.pointerId, this.field.lanePosition(event.clientX, event.clientY));
       this.lightPads();
+      if (this.slide && !this.slide.input.keyboard) this.updateSlide(this.playedTime() - this.timingOffset);
     });
     controls.addEventListener("pointerup", event => this.releasePointer(event, false));
     controls.addEventListener("pointercancel", event => this.releasePointer(event, true));
@@ -276,10 +280,6 @@ export class RhythmGame {
     this.updateSlide(time);
     this.markMisses(time);
     this.field.illuminate(lane);
-    if (this.slide) {
-      this.hitSounds.play();
-      return;
-    }
 
     const hitWindow = this.settings.window;
     const feedbackWindow = hitWindow + .13;
@@ -290,7 +290,7 @@ export class RhythmGame {
       const note = this.notes[i];
       const difference = time - note.time;
       if (difference < -feedbackWindow) break;
-      if (note.judged) continue;
+      if (note.judged || note === this.slide?.note) continue;
       if (note.lane !== lane && Math.abs(difference) <= hitWindow) otherLane = true;
       if (note.lane === lane && Math.abs(difference) <= Math.abs(delta)) {
         closest = note;
@@ -299,6 +299,7 @@ export class RhythmGame {
     }
     if (!closest || Math.abs(delta) > hitWindow) {
       this.hitSounds.play();
+      if (this.slide) return;
       const late = time - this.recentMisses[lane];
       if (late < Math.abs(delta)) delta = late;
       if (closest || late < feedbackWindow) {
@@ -309,12 +310,16 @@ export class RhythmGame {
 
     const perfect = Math.abs(delta) <= hitWindow * .46;
     if (closest.path) {
+      if (this.slide) return;
       if (!input) {
         this.feedback("Удерживай клавишу", "#e1c2ff");
         return;
       }
       this.hitSounds.play(true);
-      this.slide = { note: closest, input, perfect, delta, offPathSince: null, lastLane: lane };
+      this.slide = {
+        note: closest, input, perfect, delta, checkpoint: 1, lastLane: lane,
+        offPathSince: null, releaseReason: ""
+      };
       this.field.illuminate(lane, 8);
       this.feedback("Удерживай", "#e1c2ff");
     } else {
@@ -322,54 +327,83 @@ export class RhythmGame {
     }
   }
 
+  slideTouches(min, max) {
+    const positions = this.slide.input.keyboard ? this.keys : this.pointers.values();
+    for (const position of positions) {
+      if (position >= min && position <= max) return true;
+    }
+    return false;
+  }
+
   updateSlide(time) {
     const slide = this.slide;
     if (!slide) return;
-    const { note, input } = slide;
-    const lane = laneAt(note.path, time);
-    const distance = input.keyboard
-      ? Math.min(...Array.from(this.keys, key => Math.abs(key - lane)))
-      : Math.abs((this.pointers.get(input.pointer) ?? Infinity) - lane);
-    const nearest = Math.round(lane);
-    const end = note.path.at(-1);
-    const onPath = distance <= .64;
+    const path = slide.note.path;
+    const end = path.at(-1);
+    const grace = Math.max(.115, this.settings.window * .83);
+    const checkpoint = path[slide.checkpoint];
+    if (checkpoint && time >= checkpoint.time - checkpointLead) {
+      if (time <= checkpoint.time + grace &&
+          this.slideTouches(checkpoint.lane - .57, checkpoint.lane + .57)) {
+        slide.checkpoint++;
+      } else if (time > checkpoint.time + grace) {
+        this.failSlide(time, slide.releaseReason || (checkpoint === end ? "Конец на другой дорожке" : "Пропущен поворот"));
+        return;
+      }
+    }
 
-    if (onPath) {
+    if (time >= end.time && slide.checkpoint === path.length &&
+        this.slideTouches(end.lane - .57, end.lane + .57)) {
+      this.completeSlide();
+      return;
+    }
+    if (time > end.time + grace) {
+      this.failSlide(time, slide.releaseReason || "Конец на другой дорожке");
+      return;
+    }
+
+    const lane = laneAt(path, time);
+    const behind = laneAt(path, time - .085);
+    const ahead = laneAt(path, time + .07);
+    const min = Math.min(lane, behind, ahead) - .58;
+    const max = Math.max(lane, behind, ahead) + .58;
+    if (this.slideTouches(min, max)) {
       slide.offPathSince = null;
+      slide.releaseReason = "";
+      const nearest = Math.round(lane);
       if (nearest !== slide.lastLane) {
         slide.lastLane = nearest;
-        this.field.illuminate(lane, 7);
+        this.field.illuminate(lane, 10);
       }
     } else {
       slide.offPathSince ??= time;
-    }
-
-    if (time >= end.time) {
-      if (onPath) this.completeSlide();
-      else this.failSlide();
-    } else if (slide.offPathSince !== null && time - slide.offPathSince > this.settings.window * .82) {
-      this.failSlide();
+      if (time - slide.offPathSince > grace) {
+        this.failSlide(time, slide.releaseReason || "Удержание ушло с маршрута");
+      }
     }
   }
 
   releasePointer(event, cancelled) {
-    const position = this.pointers.get(event.pointerId);
-    if (position === undefined) return;
-    if (this.slide?.input.pointer === event.pointerId) {
-      if (cancelled) this.failSlide("Удержание прервано");
-      else {
-        const time = this.playedTime() - this.timingOffset;
-        const end = this.slide.note.path.at(-1);
-        const finalPosition = this.field.lanePosition(event.clientX, event.clientY);
-        this.pointers.set(event.pointerId, finalPosition);
+    if (!this.pointers.has(event.pointerId)) return;
+    if (this.slide && !this.slide.input.keyboard) {
+      const time = this.playedTime() - this.timingOffset;
+      if (!cancelled) {
+        const position = this.field.lanePosition(event.clientX, event.clientY);
+        this.pointers.set(event.pointerId, position);
         this.updateSlide(time);
         if (this.slide) {
-          if (time >= end.time - .065 && Math.abs(finalPosition - end.lane) <= .64) this.completeSlide();
-          else this.failSlide(time < end.time - .065 ? "Отпущен раньше конца" : "Конец на другой дорожке");
+          const path = this.slide.note.path;
+          const end = path.at(-1);
+          if (this.slide.checkpoint === path.length && time >= end.time - releaseLead &&
+              Math.abs(position - end.lane) <= .57) this.completeSlide();
         }
       }
-    }
-    this.pointers.delete(event.pointerId);
+      this.pointers.delete(event.pointerId);
+      if (this.slide && !this.pointers.size) {
+        this.slide.offPathSince ??= time;
+        this.slide.releaseReason = cancelled ? "Удержание прервано" : "Отпущен раньше конца";
+      }
+    } else this.pointers.delete(event.pointerId);
     this.lightPads();
   }
 
@@ -379,9 +413,10 @@ export class RhythmGame {
     this.hit(note, perfect, note.path.at(-1).lane, delta);
   }
 
-  failSlide(reason = "Удержание ушло с маршрута") {
+  failSlide(time, reason) {
     const { note } = this.slide;
     this.slide = null;
+    this.field.fadeSlide(note, time, true);
     note.judged = true;
     this.misses++;
     this.combo = 0;
@@ -401,7 +436,7 @@ export class RhythmGame {
     this.field.illuminate(lane, note.path ? 25 : perfect ? 19 : 10);
     if (this.combo % 10 === 0) this.field.celebrate(lane, this.combo);
     this.feedback(perfect ? "Идеально" : "Хорошо", perfect ? "#ffa9dc" : "#9decf5",
-      perfect ? "" : this.timingText(delta));
+      this.timingText(delta));
     this.updateScores();
   }
 
@@ -413,6 +448,7 @@ export class RhythmGame {
       this.missCursor++;
       if (note.judged) continue;
       note.judged = true;
+      if (note.path && !all) this.field.fadeSlide(note, note.time, false);
       this.recentMisses[note.lane] = note.time;
       this.misses++;
       this.combo = 0;
@@ -425,11 +461,14 @@ export class RhythmGame {
   }
 
   timingText(delta, withDirection = true) {
+    const milliseconds = Math.round(Math.abs(delta) * 1000);
     const side = delta < 0 ? "Рано" : "Поздно";
-    return (withDirection ? side + " · " : "") + Math.round(Math.abs(delta) * 1000) + " мс";
+    return (withDirection && milliseconds ? side + " · " : "") + milliseconds + " мс";
   }
 
   clearFeedback() {
+    this.feedbackAnimation?.cancel();
+    this.feedbackAnimation = null;
     item("judgement").textContent = "";
     item("judgement-detail").textContent = "";
   }
@@ -439,7 +478,16 @@ export class RhythmGame {
     judgement.textContent = label;
     judgement.style.color = color;
     item("judgement-detail").textContent = detail;
-    this.feedbackUntil = performance.now() + 420;
+    const message = item("judgement-message");
+    const moving = !this.field.motion?.matches;
+    this.feedbackAnimation?.cancel();
+    this.feedbackAnimation = message.animate?.([
+      { opacity: 0, transform: moving ? "translateY(5px) scale(.99)" : "none" },
+      { opacity: 1, transform: "none", offset: .14 },
+      { opacity: 1, transform: "none", offset: .62 },
+      { opacity: 0, transform: moving ? "translateY(-4px)" : "none" }
+    ], { duration: feedbackDuration, fill: "both" });
+    this.feedbackUntil = performance.now() + feedbackDuration;
   }
 
   accuracy() {

@@ -41,129 +41,77 @@ function glow(ctx, color, radius, inner) {
   ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
 }
 
-function plate(ctx, width, height, y, fill, outline, lineWidth) {
-  const tip = width * .69;
-  ctx.beginPath();
-  ctx.moveTo(-tip, y - height);
-  ctx.lineTo(tip, y - height);
-  ctx.quadraticCurveTo(tip + 3, y - height, tip + 6, y - height * .63);
-  ctx.lineTo(width, y - 1);
-  ctx.quadraticCurveTo(width + 1.5, y + 1.5, width - 1.5, y + height * .36);
-  ctx.lineTo(tip + 4, y + height - 1);
-  ctx.quadraticCurveTo(tip + 2, y + height, tip - 1, y + height);
-  ctx.lineTo(-tip + 1, y + height);
-  ctx.quadraticCurveTo(-tip - 2, y + height, -tip - 4, y + height - 1);
-  ctx.lineTo(-width + 1.5, y + height * .36);
-  ctx.quadraticCurveTo(-width - 1.5, y + 1.5, -width, y - 1);
-  ctx.lineTo(-tip - 6, y - height * .63);
-  ctx.quadraticCurveTo(-tip - 3, y - height, -tip, y - height);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = lineWidth;
-  ctx.stroke();
-}
-
 function drawNote(ctx, color) {
   ctx.save();
-  ctx.scale(1, .52);
-  glow(ctx, color, 53, color + "9c");
+  ctx.scale(1, .61);
+  glow(ctx, color, 52, color + "a8");
   ctx.restore();
 
-  const lens = tint(ctx, -14, 15, [[0, "#f5fffd"], [.26, color], [.62, color], [1, "#252e49"]]);
-  plate(ctx, 33, 14, 4, "#0b1528", color + "bf", 1.35);
-  plate(ctx, 33, 14, 0, lens, "#ecfff7", 1.4);
-  bar(ctx, -15, -9, 30, 2.4, "#ffffffcf");
-  bar(ctx, -17, 6, 34, 2.3, color + "da");
-}
-
-function bar(ctx, x, y, width, height, color) {
-  const radius = height / 2;
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y + radius);
-  ctx.lineTo(x + width - radius, y + radius);
-  ctx.lineCap = "round";
-  ctx.lineWidth = height;
-  ctx.strokeStyle = color;
-  ctx.stroke();
+  const rim = tint(ctx, -17, 20, [[0, "#f2ffff"], [.46, color], [1, "#162b4e"]]);
+  const face = tint(ctx, -15, 15, [[0, "#ffffff"], [.30, "#ecfffa"], [.65, color], [1, color + "9e"]]);
+  ellipse(ctx, 0, 3.5, 33, 18, "#08192b", color + "d3", 1.45);
+  ellipse(ctx, 0, -.25, 32, 18, rim, "#eafffd", 1.35);
+  ellipse(ctx, 0, -2.8, 25.75, 13.3, face, color, 1.4);
+  ellipse(ctx, -5, -8.1, 12, 2.1, "#ffffffbd");
 }
 
 function drawTarget(ctx, color, lit) {
-  const face = tint(ctx, -15, 17, lit
-    ? [[0, color + "6a"], [.58, "#183149"], [1, color + "bc"]]
-    : [[0, "#141e2ded"], [.64, "#0b1325f5"], [1, color + "56"]]);
-  plate(ctx, 34, 15, 4, "#0a1125", color + "71", 1.1);
-  plate(ctx, 34, 15, 0, face, lit ? "#f2fffc" : color + "ad", lit ? 1.65 : 1);
-  for (const side of [-1, 1]) {
-    ctx.save();
-    ctx.scale(side, 1);
-    ctx.beginPath();
-    ctx.moveTo(18, -10);
-    ctx.lineTo(24, -10);
-    ctx.lineTo(30, -.4);
-    ctx.lineTo(24, 9);
-    ctx.lineTo(18, 9);
-    ctx.strokeStyle = lit ? "#f5ffff" : color;
-    ctx.lineWidth = lit ? 3.2 : 2.3;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.stroke();
-    ctx.restore();
-  }
-  bar(ctx, -8, -1.2, 16, 2.4, lit ? "#f2fffc" : color + "95");
-  bar(ctx, -12, 15, 24, 2.3, lit ? color : color + "74");
+  const rim = tint(ctx, -19, 22, [[0, "#eafffd"], [.3, color], [1, color + "8f"]]);
+  const face = tint(ctx, -16, 17, lit
+    ? [[0, "#fbfffe"], [.45, color], [1, color + "ef"]]
+    : [[0, color + "36"], [.48, "#0e1633de"], [1, color + "76"]]);
+  ellipse(ctx, 0, 4.5, 34, 19, "#0c1529", color + "69", 1.65);
+  ellipse(ctx, 0, 0, 34, 19, face, rim, lit ? 3.2 : 2.6);
+  ellipse(ctx, 0, -.5, 27, 14, null, lit ? "#ffffff" : color + "cc", 1.65);
+  ellipse(ctx, 0, -.5, 16, 7.5, lit ? "#ffffffc9" : color + "20", lit ? "#ffffffa3" : color + "7a", 1);
 }
 
 function drawSlideCap(ctx, color, tail) {
-  const surface = tint(ctx, -13, 15, [[0, "#f0ffff"], [.31, color], [1, "#34768b"]]);
-  plate(ctx, 32, 13, 2, "#101a32", color, 1.6);
-  plate(ctx, 32, 13, 0, surface, "#ecfff9", 1.35);
+  const surface = tint(ctx, -16, 18, [[0, "#ecfffc"], [.4, color], [1, "#294d6f"]]);
+  ellipse(ctx, 0, 2.5, 33, 17, "#101b34", color + "d5", 1.7);
+  ellipse(ctx, 0, -1, 31.5, 16, surface, "#f3fff9", 1.9);
   if (tail) {
-    bar(ctx, -11, -2.6, 22, 5.2, "#192b43");
+    ellipse(ctx, 0, -1, 13, 6.5, "#1b3551", "#eafcff", 1.2);
   } else {
-    ctx.strokeStyle = "#192b43";
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "#1b3551";
+    ctx.lineWidth = 2.8;
     ctx.lineJoin = "round";
+    ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(-10, 3);
-    ctx.lineTo(-4, -4);
-    ctx.lineTo(4, -4);
+    ctx.lineTo(0, -5);
     ctx.lineTo(10, 3);
     ctx.stroke();
-    bar(ctx, -8, 5, 16, 2, "#192b43");
   }
 }
 
 function drawSpark(ctx, color) {
   ctx.save();
-  ctx.scale(1, .82);
-  glow(ctx, color, 76, "#ffffff");
+  ctx.scale(1, .72);
+  const burst = ctx.createRadialGradient(0, 0, 0, 0, 0, 77);
+  burst.addColorStop(0, "#ffffff");
+  burst.addColorStop(.22, "#f3ffff");
+  burst.addColorStop(.38, color);
+  burst.addColorStop(.58, color + "a4");
+  burst.addColorStop(1, color + "00");
+  ctx.fillStyle = burst;
+  ctx.fillRect(-77, -77, 154, 154);
   ctx.restore();
-  ctx.strokeStyle = color + "ec";
-  ctx.lineWidth = 2.2;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(-68, 0);
-  ctx.lineTo(68, 0);
-  ctx.moveTo(0, -43);
-  ctx.lineTo(0, 37);
-  ctx.stroke();
-  ellipse(ctx, 0, 0, 10, 6, "#fbffffdf");
+  ellipse(ctx, 0, -1, 21, 9.5, "#ffffffc9");
 }
 
 export function buildLaneSprites(colors) {
   return colors.map(color => ({
-    note: texture(108, 56, ctx => drawNote(ctx, color), 2),
+    note: texture(108, 66, ctx => drawNote(ctx, color), 2),
     slide: texture(72, 44, ctx => drawSlideCap(ctx, color, false), 2.5),
     tail: texture(72, 44, ctx => drawSlideCap(ctx, color, true), 2.5),
-    target: texture(74, 44, ctx => drawTarget(ctx, color, false), 2.5),
-    targetLit: texture(74, 44, ctx => drawTarget(ctx, color, true), 2.5),
+    target: texture(78, 54, ctx => drawTarget(ctx, color, false), 2.5),
+    targetLit: texture(78, 54, ctx => drawTarget(ctx, color, true), 2.5),
     aura: texture(148, 98, ctx => {
       ctx.scale(1, .65);
       glow(ctx, color, 74, color);
     }),
-    flash: texture(152, 126, ctx => drawSpark(ctx, color))
+    flash: texture(156, 118, ctx => drawSpark(ctx, color))
   }));
 }
 

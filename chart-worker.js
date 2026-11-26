@@ -7,7 +7,7 @@ const difficultySettings = {
     patterns: [[0, 1, 3, 2], [3, 2, 0, 1], [0, 3, 1, 2]] },
   4: { gap: .16, density: 4.05, minimum: .25, slideGap: 1.9, slideLegs: 2, chordGap: 2.4,
     patterns: [[0, 1, 2, 3], [3, 2, 1, 0], [0, 3, 1, 2]] },
-  5: { gap: .13, density: 4.85, minimum: .21, slideGap: 1.65, slideLegs: 3, chordGap: 1.7,
+  5: { gap: .119, density: 4.85, minimum: .21, slideGap: 1.65, slideLegs: 3, chordGap: 1.7,
     patterns: [[0, 2, 3, 1, 2, 0, 1, 3], [3, 2, 0, 1, 3, 1, 0, 2], [0, 1, 2, 3, 2, 1, 3, 0]] }
 };
 
@@ -85,10 +85,12 @@ function makeChart(samples, sampleRate, difficulty) {
     const strength = flux[i];
     if (energy[i] < peakEnergy * .012 || strength < .0005) continue;
     if (strength <= flux[i - 1] || strength <= flux[i - 2] || strength < flux[i + 1] || strength < flux[i + 2]) continue;
-    const time = i * frameTime + frameTime * .45;
+    const curvature = flux[i - 1] + flux[i + 1] - 2 * strength;
+    const shift = curvature ? .5 * (flux[i - 1] - flux[i + 1]) / curvature : 0;
+    const time = (i + .45 + shift) * frameTime;
     const bass = Math.max(bassRise[i - 1], bassRise[i], bassRise[i + 1]);
     const priority = strength + bass * .38;
-    peaks.push({ time, strength, priority });
+    peaks.push({ time, strength, priority, bass });
     maxStrength = Math.max(maxStrength, strength);
   }
 
@@ -98,6 +100,8 @@ function makeChart(samples, sampleRate, difficulty) {
   const accepted = [];
   const sectionLength = 4;
   let cursor = 0;
+  let contextStart = 0;
+  let contextEnd = 0;
   for (let section = 0; section < duration; section += sectionLength) {
     const end = Math.min(duration, section + sectionLength);
     const candidates = [];
@@ -107,9 +111,18 @@ function makeChart(samples, sampleRate, difficulty) {
     const lastFrame = Math.min(frames, Math.ceil(end / frameTime));
     for (let i = firstFrame; i < lastFrame; i++) intensity += energy[i];
     intensity /= Math.max(1, lastFrame - firstFrame) * peakEnergy;
-    if (intensity < .015) continue;
+    if (intensity < .015 || !candidates.length) continue;
+    while (contextStart < peaks.length && peaks[contextStart].time < section - 4) contextStart++;
+    while (contextEnd < peaks.length && peaks[contextEnd].time < end + 4) contextEnd++;
+    const grid = estimateBeatGrid(peaks.slice(contextStart, contextEnd), frameTime);
+    if (grid) {
+      const divisions = difficulty <= 2 ? 2 : 4;
+      for (let i = 0; i < candidates.length; i++) candidates[i] = alignBeat(candidates[i], grid, divisions);
+    }
     candidates.sort((left, right) => right.priority - left.priority);
-    const activity = Math.min(1, .27 + intensity * 3.8);
+    const pulses = grid ? candidates.filter(note => note.strength > maxStrength * .28).length : 0;
+    const beatActivity = grid ? pulses * grid.period / (end - section) * grid.score : 0;
+    const activity = Math.min(1, Math.max(.27 + intensity * 3.8, beatActivity));
     const limit = Math.round(settings.density * (end - section) * activity);
     const benchmark = candidates[0]?.priority ?? 0;
     const threshold = Math.max(maxStrength * .041, benchmark * settings.minimum);
@@ -124,13 +137,9 @@ function makeChart(samples, sampleRate, difficulty) {
     }
   }
 
-  if (accepted.length < Math.min(3, Math.floor(duration))) {
-    for (let i = start; i < stop; i += Math.ceil(.58 / frameTime)) {
-      if (!occupied[i] && energy[i] > peakEnergy * .10) {
-        accepted.push({ time: i * frameTime, strength: 0 });
-        if (accepted.length >= 3) break;
-      }
-    }
+  // Sparse music can still have a real attack even when the regular selection is empty.
+  if (!accepted.length && peaks.length) {
+    accepted.push(peaks.reduce((best, peak) => peak.priority > best.priority ? peak : best));
   }
 
   accepted.sort((left, right) => left.time - right.time);
@@ -141,6 +150,80 @@ function makeChart(samples, sampleRate, difficulty) {
     notes: addSlides(notes, difficulty, settings, bodyEnergy, peakBody, frameTime),
     ...stageTiming(peaks, maxStrength, energy, frameTime, duration)
   };
+}
+
+function estimateBeatGrid(onsets, step) {
+  if (onsets.length < 8 || onsets.at(-1).time - onsets[0].time < 3) return null;
+  const origin = onsets[0].time;
+  const strongest = onsets.reduce((best, event) => Math.max(best, event.priority), 0);
+  const end = Math.ceil((onsets.at(-1).time - origin) / step) + 2;
+  const pulse = new Float32Array(end);
+  const events = [];
+  let norm = 0;
+  let total = 0;
+  for (const onset of onsets) {
+    if (onset.priority < strongest * .14) continue;
+    const offset = onset.time - origin;
+    const frame = Math.round(offset / step);
+    const weight = (onset.priority / strongest) ** .8 * (.62 + Math.min(.75, onset.bass / onset.strength));
+    pulse[frame] = weight;
+    const phaseWeight = weight ** 2;
+    events.push({ frame, offset, weight, phaseWeight });
+    norm += phaseWeight;
+    total += phaseWeight;
+  }
+  if (events.length < 7) return null;
+
+  const correlation = lag => {
+    let sum = 0;
+    for (const { frame, weight } of events) {
+      const match = frame + lag;
+      if (match >= end) break;
+      const nearby = Math.max(pulse[match], (pulse[match - 1] || 0) * .78, (pulse[match + 1] || 0) * .78);
+      sum += weight * nearby;
+    }
+    return sum / norm;
+  };
+  const candidates = [];
+  for (let lag = Math.ceil(.31 / step); lag <= Math.floor(.86 / step); lag++) {
+    const fit = correlation(lag);
+    const second = Math.max(correlation(lag * 2), correlation(lag * 2 - 1), correlation(lag * 2 + 1));
+    candidates.push({ lag, fit: fit * .69 + second * .31 });
+  }
+  candidates.sort((a, b) => b.fit - a.fit);
+  const tested = [];
+  let best = null;
+  for (const { lag, fit } of candidates) {
+    if (tested.length === 4 || fit < .16) break;
+    if (tested.some(other => Math.abs(other - lag) < 3)) continue;
+    tested.push(lag);
+    for (let sample = -10; sample <= 10; sample++) {
+      const period = (lag + sample * .125) * step;
+      let sin = 0;
+      let cos = 0;
+      for (const { offset, phaseWeight } of events) {
+        const phase = offset / period * Math.PI * 2;
+        sin += Math.sin(phase) * phaseWeight;
+        cos += Math.cos(phase) * phaseWeight;
+      }
+      const agreement = Math.hypot(sin, cos) / total;
+      if (agreement < .41) continue;
+      const score = agreement * .72 + fit * .28;
+      if (!best || score > best.score) {
+        best = { period, phase: origin + Math.atan2(sin, cos) * period / (Math.PI * 2), score };
+      }
+    }
+  }
+  return best;
+}
+
+function alignBeat(event, grid, divisions) {
+  const spacing = grid.period / divisions;
+  const slot = Math.round((event.time - grid.phase) / spacing);
+  const time = grid.phase + slot * spacing;
+  if (Math.abs(time - event.time) > Math.min(.034, spacing * .23)) return event;
+  const accent = slot % divisions === 0 ? 1.25 : slot % (divisions / 2) === 0 ? 1.08 : 1;
+  return { ...event, time, priority: event.priority * accent };
 }
 
 function patternNotes(onsets, { patterns, chordGap }, maxStrength) {

@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Pulsewake — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
   <title>Pulsewake — Твой ритм</title>
-  <link rel="manifest" href="manifest.webmanifest?v=11">
-  <link rel="icon" href="assets/icon-192.png?v=11">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=11">
-  <link rel="stylesheet" href="styles.css?v=11">
-  <script type="module" src="app.js?v=11"></script>
+  <link rel="manifest" href="manifest.webmanifest?v=12">
+  <link rel="icon" href="assets/icon-192.png?v=12">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=12">
+  <link rel="stylesheet" href="styles.css?v=12">
+  <script type="module" src="app.js?v=12"></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -40,7 +40,7 @@
   <header class="site-header">
     <div class="header-inner">
       <a class="brand" href="./" aria-label="Pulsewake, главная">
-        <img class="brand-icon" src="assets/icon-192.png?v=11" width="38" height="38" alt=""><span>Pulsewake<span class="brand-period">.</span></span>
+        <img class="brand-icon" src="assets/icon-192.png?v=12" width="38" height="38" alt=""><span>Pulsewake<span class="brand-period">.</span></span>
       </a>
       <nav class="header-actions" aria-label="Управление и справка">
         <button class="quiet-button lobby-music-button" id="lobby-music-button" aria-label="Музыка в лобби" aria-pressed="false" type="button"><svg><use href="#i-volume-off"/></svg><span>Музыка</span></button>
@@ -141,8 +141,10 @@
           <button class="lane-control" type="button" data-lane="3" aria-label="Дорожка 4, клавиша K"><span>K</span></button>
         </div>
         <div class="hit-feedback">
-          <div class="judgement" id="judgement" aria-hidden="true"></div>
-          <div class="judgement-detail" id="judgement-detail" aria-hidden="true"></div>
+          <div class="judgement-message" id="judgement-message" aria-hidden="true">
+            <div class="judgement" id="judgement"></div>
+            <div class="judgement-detail" id="judgement-detail"></div>
+          </div>
           <strong id="combo" hidden>0</strong>
         </div>
         <div class="countdown" id="countdown" aria-hidden="true" hidden></div>
