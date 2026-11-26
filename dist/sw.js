@@ -1,10 +1,10 @@
-const currentCache = "ritm-v11";
+const currentCache = "ritm-v12";
 const files = [
-  "./", "./index.html", "./styles.css?v=11", "./app.js?v=11", "./audio.js?v=11", "./sound.js?v=11", "./game.js?v=11",
-  "./palette.js?v=11", "./records.js?v=11", "./timing.js?v=11", "./game-field.js?v=11", "./lane-sprites.js?v=11", "./stage-effects.js?v=11", "./chart-worker.js?v=11", "./manifest.webmanifest?v=11",
+  "./", "./index.html", "./styles.css?v=12", "./app.js?v=12", "./audio.js?v=12", "./sound.js?v=12", "./game.js?v=12",
+  "./palette.js?v=12", "./records.js?v=12", "./timing.js?v=12", "./game-field.js?v=12", "./lane-sprites.js?v=12", "./stage-effects.js?v=12", "./chart-worker.js?v=12", "./manifest.webmanifest?v=12",
   "./assets/circuit-city.webp", "./assets/dusk-lake.webp", "./assets/spectral-bloom-alpha.webp", "./assets/neon-pulse.mp3", "./assets/night-circuit.mp3",
   "./assets/manrope-latin.woff2", "./assets/manrope-cyrillic.woff2",
-  "./assets/icon-192.png?v=11", "./assets/icon-512.png?v=11", "./assets/icon-maskable.png?v=11"
+  "./assets/icon-192.png?v=12", "./assets/icon-512.png?v=12", "./assets/icon-maskable.png?v=12"
 ];
 const lobbyTrack = new URL("./assets/night-circuit.mp3", self.registration.scope).href;
 const local = new Set(files.map(path => new URL(path, self.registration.scope).href));

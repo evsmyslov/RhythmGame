@@ -362,9 +362,10 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
 .lane-control.pressed span, .lane-control:active span { color: #fff; }
 .hit-feedback, .countdown { position: absolute; z-index: 1; left: 0; right: 0; pointer-events: none; text-align: center; font-weight: 800; }
 .hit-feedback { top: max(94px, 37%); display: grid; justify-items: center; gap: 2px; }
+.judgement-message { display: grid; justify-items: center; gap: 1px; }
 .judgement { min-height: 1.25em; font-size: clamp(.98rem, 4.6vh, 1.85rem); line-height: 1.25; text-shadow: 0 3px 11px #0c1531, 0 0 17px currentColor; }
-.judgement-detail { font-size: clamp(.74rem, 2.7vh, 1rem); color: #f3e7ff; text-shadow: 0 2px 7px #070910, 0 0 11px #070910; }
-.judgement-detail:empty { display: none; }
+.judgement-detail { min-height: 1.36em; line-height: 1.36; font-size: clamp(.74rem, 2.7vh, 1rem); color: #f3e7ff; text-shadow: 0 2px 7px #070910, 0 0 11px #070910; }
+.judgement-detail:empty { visibility: hidden; }
 .countdown { top: 29%; font-size: clamp(2.5rem, 11vw, 5.3rem); color: #e5f6ff; text-shadow: 0 0 27px #a392fb; }
 .stage-overlay { z-index: 2; display: grid; place-items: center; overflow: auto; padding: calc(67px + var(--safe-top)) 12px max(12px, var(--safe-bottom)); background: radial-gradient(ellipse, #1a0d2b96 10%, #10091dcf 95%); }
 .overlay-content { width: min(100%, 370px); padding: 19px 22px; border: 1px solid #9a65be65; border-radius: 20px; text-align: center; background: #170d28ec; box-shadow: 0 17px 54px #03020a99; }
