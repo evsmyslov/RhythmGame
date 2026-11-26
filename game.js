@@ -1,8 +1,8 @@
-import { difficulties } from "./audio.js?v=13";
-import { GameField, laneAt } from "./game-field.js?v=13";
-import { HitSounds } from "./sound.js?v=13";
-import { audibleTime, timingOffset } from "./timing.js?v=13";
-import { finishRecord, readBest } from "./records.js?v=13";
+import { difficulties } from "./audio.js?v=14";
+import { GameField, laneAt } from "./game-field.js?v=14";
+import { HitSounds } from "./sound.js?v=14";
+import { audibleTime, timingOffset } from "./timing.js?v=14";
+import { finishRecord, readBest } from "./records.js?v=14";
 const releaseLead = .055;
 const slideTick = .18;
 const slideLaneTolerance = .59;
@@ -554,11 +554,11 @@ export class RhythmGame {
 
   updateCombo() {
     const previous = this.displayedCombo ?? 0;
+    if (this.combo === previous) return;
     const label = item("combo");
     label.textContent = formatNumber.format(this.combo);
     label.setAttribute("aria-label", "Комбо " + this.combo);
     label.hidden = !this.combo;
-    if (this.combo === previous) return;
     this.displayedCombo = this.combo;
 
     const scale = 1 + Math.min(.33, Math.log2(1 + this.combo / 7) * .105);
@@ -568,15 +568,17 @@ export class RhythmGame {
     const tier = increasing ? comboTier(this.combo) : 0;
     if (increasing && tier < this.comboAnimationTier && this.comboAnimation?.playState === "running") return;
     this.comboAnimation?.cancel();
+    label.style.color = "";
     if (!increasing || this.field.motion.matches || !label.animate) return;
 
     this.comboAnimationTier = tier;
     const effect = comboTiers[tier];
+    if (effect) label.style.color = effect.color;
     const frames = effect ? [
       { transform: stable },
-      { transform: `translateX(${-effect.shake}px) rotate(${-effect.shake}deg) scale(${scale + effect.scale})`, color: effect.color, offset: .2 },
-      { transform: `translateX(${effect.shake}px) rotate(${effect.shake * .7}deg) scale(${scale + effect.scale * .5})`, color: "#fff", offset: .42 },
-      { transform: `translateX(${-effect.shake * .4}px) scale(${scale + effect.scale * .2})`, color: effect.color, offset: .64 },
+      { transform: `translateX(${-effect.shake}px) rotate(${-effect.shake}deg) scale(${scale + effect.scale})`, offset: .2 },
+      { transform: `translateX(${effect.shake}px) rotate(${effect.shake * .7}deg) scale(${scale + effect.scale * .5})`, offset: .42 },
+      { transform: `translateX(${-effect.shake * .4}px) scale(${scale + effect.scale * .2})`, offset: .64 },
       { transform: stable }
     ] : [
       { transform: stable },
@@ -584,6 +586,7 @@ export class RhythmGame {
       { transform: stable }
     ];
     this.comboAnimation = label.animate(frames, { duration: effect?.duration ?? 155, easing: "ease-out" });
+    if (effect) this.comboAnimation.onfinish = () => { label.style.color = ""; };
   }
 
   updateProgress(time) {

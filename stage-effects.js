@@ -1,3 +1,5 @@
+import { texture } from "./lane-sprites.js?v=14";
+
 const tau = Math.PI * 2;
 const unit = value => Math.max(0, Math.min(1, value));
 const smooth = value => {
@@ -29,6 +31,28 @@ export class StageEffects {
   setTrack({ accents = [], climaxes = [], duration = 0 }, palette) {
     this.accents = accents;
     this.climaxes = climaxes;
+    if (this.colors !== palette.lanes) {
+      this.prisms = palette.lanes.map(color => texture(26, 16, ctx => {
+        ctx.beginPath();
+        ctx.moveTo(-12, 2);
+        ctx.lineTo(11, 5);
+        ctx.lineTo(4, -5);
+        ctx.closePath();
+        ctx.fillStyle = color + "bd";
+        ctx.fill();
+        ctx.lineWidth = .8;
+        ctx.strokeStyle = "#efffff";
+        ctx.stroke();
+      }, 2).canvas);
+      this.roadGlow = texture(2, 64, ctx => {
+        const glow = ctx.createLinearGradient(0, -32, 0, 32);
+        glow.addColorStop(0, palette.lanes[0] + "00");
+        glow.addColorStop(.5, palette.lanes[0] + "4b");
+        glow.addColorStop(1, palette.lanes[0] + "00");
+        ctx.fillStyle = glow;
+        ctx.fillRect(-1, -32, 2, 64);
+      }).canvas;
+    }
     this.colors = palette.lanes;
     this.rayColors = palette.rays;
     this.raySpeed = .50 + unit(accents.length / Math.max(duration, 1) / 3.4) * .36;
@@ -43,7 +67,7 @@ export class StageEffects {
     this.bloomOpacity = -1;
     this.lightOpacity = -1;
     this.shadeOpacity = -1;
-    this.setBloom(0, 0);
+    this.setBloom(0);
     this.setLight(.22);
     this.setShade(0);
   }
@@ -91,11 +115,10 @@ export class StageEffects {
     this.streakPower = tier === 2 ? .36 : tier === 3 ? .68 : Math.min(1, .82 + (combo - 100) * .0006);
   }
 
-  setBloom(opacity, spread) {
+  setBloom(opacity) {
     if (!this.bloom || Math.abs(this.bloomOpacity - opacity) < .012) return;
     this.bloomOpacity = opacity;
     this.bloom.style.opacity = opacity.toFixed(3);
-    this.bloom.style.transform = "scale(" + (1.02 + spread * .105).toFixed(3) + ")";
   }
 
   setLight(opacity) {
@@ -115,7 +138,7 @@ export class StageEffects {
     this.pulse = 0;
     this.setShade(load * .58);
     if (!this.width || this.motion.matches || time < 0) {
-      this.setBloom(0, 0);
+      this.setBloom(0);
       this.setLight(.22);
       return;
     }
@@ -129,27 +152,25 @@ export class StageEffects {
     const opening = age < 0 ? smooth((age + 1.45) / 1.45) : 0;
     const peak = age >= 0 ? smooth(age / .24) * (1 - smooth((age - .85) / 2.6)) : 0;
     const streakAge = (now - this.streakBurst) / 1000;
-    const streak = smooth(streakAge / .13) * (1 - smooth((streakAge - .16) / (.28 * this.streakTier))) * this.streakPower;
+    const celebrating = streakAge < 1.3;
+    const streak = celebrating
+      ? smooth(streakAge / .13) * (1 - smooth((streakAge - .16) / (.28 * this.streakTier))) * this.streakPower : 0;
     const calm = 1 - load * .75;
     const energy = Math.max(peak * .60 * calm, streak);
-    const spread = Math.max(opening * .32 * calm, energy);
-    this.setBloom(unit(energy * .66 + (opening * .16 + beat * .12) * calm), spread);
+    const wings = this.streakTier === 4 ? streak * .58 : 0;
+    this.setBloom(unit(Math.max(peak * .40 * calm, wings) + (opening * .16 + beat * .12) * calm));
     this.setLight(unit(.16 + (beat * .49 + opening * .13) * calm + energy * .19));
 
     const ctx = this.ctx;
     ctx.save();
     this.drawCore(time, beat * calm, opening * calm, energy * (1 - load * .50));
     this.drawSpeedLines(time, beat, load);
-    if (age >= 0 && age < 2.1 && load < .75) {
+    if (celebrating) {
+      this.drawSurge(streakAge, this.streakPower, this.streakTier - 1);
+      if (this.streakTier === 4) this.drawPrisms(streakAge, this.streakPower);
+    } else if (age >= 0 && age < 1.7 && load < .75) {
       this.drawSurge(age, .50 * calm);
       this.drawPrisms(age, .56 * calm);
-    }
-    if (streakAge < 1.6) {
-      this.drawSurge(streakAge, this.streakPower, this.streakTier - 1);
-      if (this.streakTier === 4) {
-        this.drawStreakWings(streakAge);
-        this.drawPrisms(streakAge, this.streakPower);
-      }
     }
     ctx.restore();
 
@@ -233,55 +254,22 @@ export class StageEffects {
     }
   }
 
-  drawStreakWings(age) {
-    const ctx = this.ctx;
-    const span = Math.min(this.height, this.width);
-    const progress = unit(age / 1.28);
-    const fade = smooth(progress / .13) * (1 - progress) ** 1.3 * this.streakPower;
-    if (!fade) return;
-    const x = this.width / 2;
-    const y = this.horizon + span * .15;
-    const spread = (.24 + progress * .36) * this.width;
-    ctx.globalAlpha = fade * .70;
-    for (let side = -1; side <= 1; side += 2) {
-      for (let ribbon = 0; ribbon < 3; ribbon++) {
-        const lift = span * (.15 + ribbon * .065);
-        ctx.beginPath();
-        ctx.moveTo(x + side * span * .12, y);
-        ctx.bezierCurveTo(x + side * spread * .40, y - lift, x + side * spread * .65, y + lift, x + side * spread, y + lift * 1.65);
-        ctx.lineWidth = 3 - ribbon * .7;
-        ctx.strokeStyle = this.colors[(ribbon + (side > 0 ? 1 : 0)) % this.colors.length];
-        ctx.stroke();
-      }
-    }
-  }
-
   drawPrisms(age, strength) {
     const ctx = this.ctx;
     const center = this.width / 2;
-    for (let index = 0; index < 18; index++) {
-      const progress = (age - (index % 9) * .055) / (1.15 + (index % 4) * .14);
+    const span = Math.min(this.width, this.height);
+    for (let index = 0; index < 10; index++) {
+      const progress = (age - (index % 5) * .075) / (.97 + (index % 4) * .10);
       if (progress <= 0 || progress >= 1) continue;
       const flight = 1 - (1 - progress) ** 1.8;
-      const side = index < 9 ? -1 : 1;
-      const distance = this.width * (.27 + (index % 9) * .037);
+      const side = index < 5 ? -1 : 1;
+      const distance = this.width * (.28 + (index % 5) * .054);
       const x = center + side * distance * flight;
       const y = this.horizon + this.height * (.06 + (index % 6) * .075) * flight
         - Math.sin(flight * Math.PI) * this.height * .17;
-      const tip = Math.min(this.width, this.height) * (.018 + (index % 5) * .007);
-      const opacity = smooth(progress / .12) * (1 - progress) * strength;
-      ctx.beginPath();
-      ctx.moveTo(x - tip * side, y - tip * .28);
-      ctx.lineTo(x + tip * side, y + tip * .31);
-      ctx.lineTo(x + tip * .39 * side, y - tip * .42);
-      ctx.closePath();
-      ctx.globalAlpha = opacity * .51;
-      ctx.fillStyle = this.colors[index % this.colors.length];
-      ctx.fill();
-      ctx.globalAlpha = opacity * .72;
-      ctx.strokeStyle = "#edfbff";
-      ctx.lineWidth = .55;
-      ctx.stroke();
+      const size = span * (.037 + (index % 4) * .016);
+      ctx.globalAlpha = smooth(progress / .12) * (1 - progress) * strength;
+      ctx.drawImage(this.prisms[index % this.prisms.length], x - size / 2, y - size * .30, size, size * .60);
     }
   }
 
@@ -292,16 +280,11 @@ export class StageEffects {
     const y = this.horizon + (this.height - this.horizon) * progress ** .72;
     const span = field.spanAt(y) * .5;
     const width = 11 + progress * 34;
-    const glow = ctx.createLinearGradient(0, y - width, 0, y + width);
-    const alpha = Math.round((1 - progress) * 75).toString(16).padStart(2, "0");
-    glow.addColorStop(0, this.colors[0] + "00");
-    glow.addColorStop(.5, this.colors[0] + alpha);
-    glow.addColorStop(1, this.colors[0] + "00");
-    ctx.fillStyle = glow;
-    ctx.fillRect(this.width / 2 - span, y - width, span * 2, width * 2);
     const start = Math.max(this.horizon, y - width * 1.9);
     const end = Math.min(this.height, y + width * 1.5);
     ctx.save();
+    ctx.globalAlpha = 1 - progress;
+    ctx.drawImage(this.roadGlow, this.width / 2 - span, y - width, span * 2, width * 2);
     ctx.globalAlpha = (1 - progress) * .82;
     ctx.lineWidth = 2.5 + progress * 4;
     ctx.lineCap = "round";
