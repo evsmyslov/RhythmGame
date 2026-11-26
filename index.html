@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Pulsewake — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
   <title>Pulsewake — Твой ритм</title>
-  <link rel="manifest" href="manifest.webmanifest?v=12">
-  <link rel="icon" href="assets/icon-192.png?v=12">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=12">
-  <link rel="stylesheet" href="styles.css?v=12">
-  <script type="module" src="app.js?v=12"></script>
+  <link rel="manifest" href="manifest.webmanifest?v=13">
+  <link rel="icon" href="assets/icon-192.png?v=13">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=13">
+  <link rel="stylesheet" href="styles.css?v=13">
+  <script type="module" src="app.js?v=13"></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -40,7 +40,7 @@
   <header class="site-header">
     <div class="header-inner">
       <a class="brand" href="./" aria-label="Pulsewake, главная">
-        <img class="brand-icon" src="assets/icon-192.png?v=12" width="38" height="38" alt=""><span>Pulsewake<span class="brand-period">.</span></span>
+        <img class="brand-icon" src="assets/icon-192.png?v=13" width="38" height="38" alt=""><span>Pulsewake<span class="brand-period">.</span></span>
       </a>
       <nav class="header-actions" aria-label="Управление и справка">
         <button class="quiet-button lobby-music-button" id="lobby-music-button" aria-label="Музыка в лобби" aria-pressed="false" type="button"><svg><use href="#i-volume-off"/></svg><span>Музыка</span></button>
@@ -66,19 +66,21 @@
       <div class="section-heading"><h2>Своя песня</h2></div>
 
       <label class="field-label" for="track-url">Ссылка на трек</label>
-      <div class="url-field">
-        <svg class="field-icon"><use href="#i-link"/></svg>
-        <input id="track-url" type="url" placeholder="Аудио, YouTube или Spotify" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="source-error streaming-hint">
-        <button class="paste-button" id="paste-button" type="button" aria-label="Вставить ссылку" title="Вставить ссылку"><svg><use href="#i-clip"/></svg><span>Вставить</span></button>
+      <div class="track-controls">
+        <div class="url-field">
+          <svg class="field-icon"><use href="#i-link"/></svg>
+          <input id="track-url" type="url" placeholder="Аудио, YouTube или Spotify" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="source-error streaming-hint">
+          <button class="paste-button" id="paste-button" type="button" aria-label="Вставить ссылку" title="Вставить ссылку"><svg><use href="#i-clip"/></svg><span>Вставить</span></button>
+        </div>
+        <div class="source-row">
+          <input type="file" id="track-file" accept="audio/*,video/mp4,video/quicktime,video/webm,.mp3,.m4a,.wav,.ogg,.opus,.flac,.aac,.mp4,.m4v,.mov,.webm" hidden>
+          <button class="file-button" id="file-button" type="button" aria-label="Выбрать аудио или видео"><svg><use href="#i-upload"/></svg><span>Выбрать <span class="file-type-caption">аудио или видео</span><span class="native-file-caption">файл</span></span></button>
+          <div id="file-tag" class="file-tag" hidden><span id="file-name"></span><button class="icon-button" id="remove-file" type="button" aria-label="Убрать файл"><svg><use href="#i-close"/></svg></button></div>
+        </div>
       </div>
       <div class="streaming-source" id="streaming-source" hidden>
         <a id="streaming-link" target="_blank" rel="noopener noreferrer"><svg><use href="#i-link"/></svg><span></span></a>
         <p id="streaming-hint">Выбери аудио или видео с этим треком, чтобы сгенерировать ноты.</p>
-      </div>
-      <div class="source-row">
-        <input type="file" id="track-file" accept="audio/*,video/mp4,video/quicktime,video/webm,.mp3,.m4a,.wav,.ogg,.opus,.flac,.aac,.mp4,.m4v,.mov,.webm" hidden>
-        <button class="file-button" id="file-button" type="button"><svg><use href="#i-upload"/></svg>Выбрать аудио или видео</button>
-        <div id="file-tag" class="file-tag" hidden><span id="file-name"></span><button class="icon-button" id="remove-file" type="button" aria-label="Убрать файл"><svg><use href="#i-close"/></svg></button></div>
       </div>
       <p class="field-error" id="source-error" role="alert" hidden></p>
 
@@ -155,6 +157,7 @@
             <p id="ready-detail"></p>
             <p class="record-line" id="ready-record" hidden></p>
             <p class="ready-hint" id="ready-hint"><span class="hint-touch">Удерживай начало слайда и веди палец по стрелкам до конца.</span><span class="hint-keyboard">Клавиши D, F, J, K. На слайдах удерживай ноту и меняй дорожку по стрелкам.</span></p>
+            <p class="ready-hint" id="resume-hint" hidden>Чтобы продолжить слайд, удерживай его подсвеченную ноту.</p>
             <p class="play-error" id="play-error" role="alert" hidden></p>
             <button class="primary-button" id="start-button" type="button"><svg><use href="#i-play"/></svg><span>Начать игру</span></button>
           </div>
