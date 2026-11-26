@@ -1,7 +1,7 @@
-import { StageEffects } from "./stage-effects.js?v=12";
-import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=12";
+import { StageEffects } from "./stage-effects.js?v=13";
+import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=13";
 
-import { trackPalette } from "./palette.js?v=12";
+import { trackPalette } from "./palette.js?v=13";
 
 const laneCount = 4;
 const tau = Math.PI * 2;
@@ -158,16 +158,21 @@ export class GameField {
     this.scatter(lane, power, now, false);
   }
 
-  celebrate(lane, combo) {
+  celebrate(lane, combo, tier) {
     if (!this.width || this.motion.matches) return;
     const now = performance.now();
-    this.effects.celebrate(now, combo);
-    for (let i = 0; i < laneCount; i++) {
-      const delay = Math.abs(i - lane) * 52;
-      this.ripples.push({ lane: i, born: now + delay, color: this.palette.lanes[i], size: 3.1 });
+    this.effects.celebrate(now, tier, combo);
+    const nearest = clamp(Math.round(lane), 0, 3);
+    const first = tier === 1 ? nearest : 0;
+    const last = tier === 1 ? nearest : laneCount - 1;
+    for (let i = first; i <= last; i++) {
+      const delay = Math.abs(i - lane) * 44;
+      this.ripples.push({ lane: i, born: now + delay, color: this.palette.lanes[i], size: 1.7 + tier * .55 });
     }
-    this.scatter(lane, 42, now, true);
-    for (const edge of [0, 3]) this.scatter(edge, 16, now, true);
+    this.scatter(lane, 7 + tier * 8, now, tier > 1);
+    if (tier >= 3) {
+      for (const edge of [0, 3]) this.scatter(edge, tier === 4 ? 14 : 7, now, true);
+    }
   }
 
   fadeSlide(note, time, active) {
@@ -188,7 +193,7 @@ export class GameField {
     if (this.sparks.length > 108) this.sparks.splice(0, this.sparks.length - 108);
   }
 
-  draw(notes, cursor, time, approach, activeNote, musicPlaying) {
+  draw(notes, cursor, time, approach, slide, musicPlaying) {
     if (!this.width) return;
     const ctx = this.ctx;
     const { width, height, strike } = this;
@@ -198,6 +203,7 @@ export class GameField {
     taps.length = 0;
     slides.length = 0;
     let nearby = 0;
+    const activeNote = slide?.note;
     let nextTransition = activeNote;
     for (let index = cursor; index < notes.length; index++) {
       const note = notes[index];
@@ -230,15 +236,18 @@ export class GameField {
       return this.spawn + this.travel * (progress < 0 ? .6 * progress : progress * (.55 + .45 * progress));
     };
     this.slideFades = this.slideFades.filter(({ note, time: stamp, active, born }) => {
-      const remaining = 1 - (now - born) / 250;
+      const remaining = 1 - (now - born) / (active ? 500 : 290);
       if (remaining <= 0) return false;
-      ctx.globalAlpha = remaining ** 1.6 * .48;
+      ctx.globalAlpha = remaining ** 1.5 * (active ? .77 : .48);
       this.drawSlide(note, project(stamp), stamp, active, false);
       return true;
     });
     ctx.globalAlpha = 1;
     const position = project(time);
-    for (const note of slides) this.drawSlide(note, position, time, activeNote === note, nextTransition === note);
+    for (const note of slides) {
+      const active = activeNote === note;
+      this.drawSlide(note, position, time, active, nextTransition === note, active && musicPlaying && slide.holding);
+    }
     for (const note of taps) this.drawHead(note.lane, position(note.time));
     ctx.restore();
     this.drawEffects(now);
@@ -319,16 +328,17 @@ export class GameField {
     }
   }
 
-  drawSlide(note, position, time, active, highlighted) {
-    const head = active ? { time, lane: laneAt(note.path, time) } : note.path[0];
+  drawSlide(note, position, time, active, highlighted, charged = false) {
+    const head = active ? { time, lane: laneAt(note.path, Math.min(time, note.path.at(-1).time)) } : note.path[0];
     const tail = note.path.at(-1);
     const headY = position(head.time);
     if (headY < this.spawn - 27) return;
 
     if (tail.time > head.time) {
-      this.drawSlideRibbon(note.path, position, head, this.palette.lanes[note.lane], active, highlighted);
+      this.drawSlideRibbon(note.path, position, head, this.palette.lanes[note.lane], charged, highlighted);
       this.drawHead(tail.lane, position(tail.time), note.lane, "tail");
     }
+    if (charged) this.drawSlideCharge(note, head, position);
     this.drawHead(head.lane, headY, note.lane, active && time >= tail.time ? "tail" : "slide");
   }
 
@@ -338,7 +348,7 @@ export class GameField {
     return Math.min(this.noteRadius * (.45 + .55 * depth), laneRadius);
   }
 
-  drawSlideRibbon(path, position, head, color, active, highlighted) {
+  drawSlideRibbon(path, position, head, color, charged, highlighted) {
     const ctx = this.ctx;
     const sectionAt = (time, lane) => {
       const y = position(time);
@@ -346,6 +356,7 @@ export class GameField {
     };
     const sections = [sectionAt(head.time, head.lane)];
     const arrows = [];
+    const corners = [];
     let previous = head;
 
     for (const point of path) {
@@ -362,6 +373,7 @@ export class GameField {
       );
       for (let i = 1; i < steps; i++) sections.push(section(i / steps));
       sections.push(end);
+      if (point !== path.at(-1) && end.y >= this.spawn) corners.push(end);
       if (Math.abs(point.lane - previous.lane) > .2 && length > 37) {
         const angle = Math.atan2(dy, dx);
         for (const ratio of length > 115 ? [.38, .69] : [.53]) {
@@ -372,10 +384,19 @@ export class GameField {
       previous = point;
     }
 
-    fillRibbon(ctx, sections, highlighted ? 1.14 : 1.06, "#091322");
-    fillRibbon(ctx, sections, 1, active ? "#effff9" : color);
-    fillRibbon(ctx, sections, .79, active ? color + "d2" : "#111c37c9");
-    fillRibbon(ctx, sections, .26, active ? "#ffffff88" : color + (highlighted ? "a6" : "60"));
+    fillRibbon(ctx, sections, charged ? 1.46 : highlighted ? 1.14 : 1.06, charged ? color + "47" : "#091322");
+    fillRibbon(ctx, sections, 1, charged ? "#effff9" : color);
+    fillRibbon(ctx, sections, .79, charged ? color + "dc" : "#111c37c9");
+    fillRibbon(ctx, sections, .26, charged ? "#ffffffbd" : color + (highlighted ? "a6" : "60"));
+    for (const { x, y, radius } of corners) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, radius * .82, radius * .42, 0, 0, tau);
+      ctx.fillStyle = "#15233e";
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = charged ? "#fff" : color;
+      ctx.stroke();
+    }
     for (const { x, y, radius, angle } of arrows) {
       const size = clamp(radius * (highlighted ? .51 : .42), 2.8, highlighted ? 11 : 8.5);
       ctx.save();
@@ -385,13 +406,55 @@ export class GameField {
       ctx.moveTo(-size * .62, -size);
       ctx.lineTo(size * .60, 0);
       ctx.lineTo(-size * .62, size);
-      ctx.strokeStyle = active ? "#112638" : "#edfff5ef";
+      ctx.strokeStyle = charged ? "#112638" : "#edfff5ef";
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
       ctx.lineWidth = clamp(size * .36, 1.3, 3);
       ctx.stroke();
       ctx.restore();
     }
+  }
+
+  drawSlideCharge(note, head, position) {
+    const ctx = this.ctx;
+    const x = this.x(head.lane);
+    const y = this.strike;
+    const radius = this.targetRadius;
+    const lane = clamp(Math.round(head.lane), 0, 3);
+    const color = this.palette.lanes[lane];
+    const rest = this.motion.matches;
+    const elapsed = Math.max(0, head.time - note.time);
+    const pulse = rest ? .5 : .5 + Math.cos(elapsed * tau / .18) * .5;
+    ctx.save();
+    ctx.globalAlpha = .62 + pulse * .28;
+    drawLaneSprite(ctx, this.laneSprites[lane].aura, x, y, radius * (1.42 + pulse * .11), .83);
+    ctx.lineCap = "round";
+    for (let side = 0; side < 2; side++) {
+      const start = rest ? side * Math.PI : elapsed * 7 + side * Math.PI;
+      ctx.beginPath();
+      ctx.ellipse(x, y, radius * 1.10, radius * .53, 0, start, start + Math.PI * .69);
+      ctx.strokeStyle = side ? color : "#edfff5";
+      ctx.lineWidth = 2 + pulse * 2;
+      ctx.stroke();
+    }
+
+    if (!rest) {
+      const tailTime = note.path.at(-1).time;
+      for (let i = 0; i < 7; i++) {
+        const travel = (elapsed * 4 + i / 7) % 1;
+        const time = head.time + travel * Math.min(.56, Math.max(0, tailTime - head.time));
+        const py = position(time);
+        const size = this.noteSize(py);
+        const side = i % 2 ? 1 : -1;
+        const px = this.x(laneAt(note.path, time), py) + side * size * (.32 + travel * .57);
+        ctx.globalAlpha = (1 - travel) * .66;
+        ctx.fillStyle = i % 3 ? color : "#fff";
+        ctx.beginPath();
+        ctx.ellipse(px, py + size * .22, 1.6 + travel, 2.4 + travel * 2, side * .45, 0, tau);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
   }
 
   drawHead(lane, y, spriteLane = lane, kind = "note") {

@@ -1,16 +1,31 @@
-import { difficulties } from "./audio.js?v=12";
-import { GameField, laneAt } from "./game-field.js?v=12";
-import { HitSounds } from "./sound.js?v=12";
-import { audibleTime, timingOffset } from "./timing.js?v=12";
-import { finishRecord, readBest } from "./records.js?v=12";
-const checkpointLead = .06;
+import { difficulties } from "./audio.js?v=13";
+import { GameField, laneAt } from "./game-field.js?v=13";
+import { HitSounds } from "./sound.js?v=13";
+import { audibleTime, timingOffset } from "./timing.js?v=13";
+import { finishRecord, readBest } from "./records.js?v=13";
 const releaseLead = .055;
+const slideTick = .18;
+const slideLaneTolerance = .59;
 const feedbackDuration = 560;
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
 const formatNumber = new Intl.NumberFormat("ru");
 const percent = value => Math.round(value * 100) + "%";
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const item = id => document.getElementById(id);
+const comboTiers = [null,
+  { scale: .15, shake: 0, color: "#c8ffed", duration: 270 },
+  { scale: .25, shake: 2, color: "#b7f9ff", duration: 370 },
+  { scale: .37, shake: 4, color: "#ffde9e", duration: 520 },
+  { scale: .50, shake: 6, color: "#ffdcff", duration: 720 }
+];
+
+function comboTier(combo) {
+  if (!combo) return 0;
+  if (combo % 100 === 0) return 4;
+  if (combo % 50 === 0) return 3;
+  if (combo % 25 === 0) return 2;
+  return combo % 10 === 0 ? 1 : 0;
+}
 
 export class RhythmGame {
   constructor(onStart) {
@@ -35,24 +50,27 @@ export class RhythmGame {
     item("pause-button").addEventListener("click", () => this.pause());
     const controls = item("lane-controls");
     controls.addEventListener("pointerdown", event => {
-      if (event.button !== 0 || this.phase !== "playing") return;
+      if (event.button !== 0 || !this.listeningForInput()) return;
       event.preventDefault();
       const position = this.field.lanePosition(event.clientX, event.clientY);
       const lane = clamp(Math.round(position), 0, 3);
-      controls.setPointerCapture(event.pointerId);
       this.pointers.set(event.pointerId, position);
+      try { controls.setPointerCapture(event.pointerId); } catch { /* Input is also tracked on the document. */ }
       this.lightPads();
-      this.press(lane, { pointer: event.pointerId });
+      this.press(lane, true);
     });
-    controls.addEventListener("pointermove", event => {
+    document.addEventListener("pointermove", event => {
       if (!this.pointers.has(event.pointerId)) return;
+      if (event.pointerType === "mouse" && !(event.buttons & 1)) {
+        this.releasePointer(event, true);
+        return;
+      }
       this.pointers.set(event.pointerId, this.field.lanePosition(event.clientX, event.clientY));
       this.lightPads();
-      if (this.slide && !this.slide.input.keyboard) this.updateSlide(this.playedTime() - this.timingOffset);
+      if (this.slide && this.phase === "playing") this.updateSlide(this.playedTime() - this.timingOffset);
     });
-    controls.addEventListener("pointerup", event => this.releasePointer(event, false));
-    controls.addEventListener("pointercancel", event => this.releasePointer(event, true));
-    controls.addEventListener("lostpointercapture", event => this.releasePointer(event, true));
+    document.addEventListener("pointerup", event => this.releasePointer(event, false));
+    document.addEventListener("pointercancel", event => this.releasePointer(event, true));
     this.buttons.forEach((button, lane) => button.addEventListener("click", event => {
       if (event.detail === 0) this.press(lane);
     }));
@@ -63,22 +81,31 @@ export class RhythmGame {
         event.preventDefault();
         this.pause();
       }
-      if (event.code in keyLanes && this.phase === "playing") {
+      if (event.code in keyLanes && this.listeningForInput()) {
         event.preventDefault();
         const lane = keyLanes[event.code];
         this.keys.add(lane);
         this.lightPads();
-        this.press(lane, { keyboard: true });
+        this.press(lane, true);
       }
     });
     document.addEventListener("keyup", event => {
-      if (!this.keys.delete(keyLanes[event.code])) return;
+      const lane = keyLanes[event.code];
+      if (!this.keys.has(lane)) return;
+      const time = this.slide && this.phase === "playing" ? this.playedTime() - this.timingOffset : null;
+      if (time !== null) this.releaseSlideInput(time, lane);
+      this.keys.delete(lane);
+      if (time !== null) this.updateSlide(time);
       this.lightPads();
     });
     window.addEventListener("blur", () => this.pause(false));
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) this.pause(false);
     });
+  }
+
+  listeningForInput() {
+    return this.phase === "playing" || (this.phase === "countdown" && Boolean(this.slide));
   }
 
   open(track) {
@@ -112,7 +139,7 @@ export class RhythmGame {
     this.good = 0;
     this.perfect = 0;
     this.misses = 0;
-    this.combo = 0;
+    this.resetCombo();
     this.maxCombo = 0;
     this.offset = 0;
     this.countText = "";
@@ -136,6 +163,7 @@ export class RhythmGame {
     item("ready-title").textContent = paused ? "Пауза" : "Уровень готов";
     item("ready-detail").textContent = this.settings.stars + " · " + this.settings.name + " · " + formatNumber.format(this.notes.length) + " нот";
     item("ready-hint").hidden = paused || !this.slideCount;
+    item("resume-hint").hidden = !paused || !this.slide;
     item("start-button").querySelector("span").textContent = paused ? "Продолжить" : "Начать игру";
     const best = paused ? null : readBest(this.track);
     const record = item("ready-record");
@@ -216,9 +244,13 @@ export class RhythmGame {
       this.finish();
       return;
     }
-    const resumeTime = this.slide ? Math.max(0, this.slide.note.time + this.timingOffset - .23) : time;
-    this.offset = clamp(resumeTime, this.offset, Math.max(0, this.track.duration - .01));
-    this.clearInputs();
+    this.offset = clamp(time, this.offset, Math.max(0, this.track.duration - .01));
+    if (this.slide) {
+      this.slide.holding = false;
+      this.slide.resumeUntil = this.offset - this.timingOffset + .28;
+      this.slide.offPathSince = null;
+    }
+    this.clearInputs(true);
     this.field.reset();
     this.stopAudio();
     this.clearFeedback();
@@ -239,7 +271,7 @@ export class RhythmGame {
       if (this.phase === "countdown") {
         this.phase = "playing";
         item("countdown").hidden = true;
-        item("combo").hidden = this.combo < 2;
+        item("combo").hidden = !this.combo;
       }
       const chartTime = time - this.timingOffset;
       this.updateSlide(chartTime);
@@ -258,10 +290,10 @@ export class RhythmGame {
     this.animation = requestAnimationFrame(this.tick);
   }
 
-  clearInputs() {
+  clearInputs(keepSlide = false) {
     this.pointers.clear();
     this.keys.clear();
-    this.slide = null;
+    if (!keepSlide) this.slide = null;
     this.lightPads();
   }
 
@@ -274,7 +306,7 @@ export class RhythmGame {
     this.buttons.forEach((button, lane) => button.classList.toggle("pressed", Boolean(pressed & (1 << lane))));
   }
 
-  press(lane, input) {
+  press(lane, canHold) {
     if (this.phase !== "playing") return;
     const time = this.playedTime() - this.timingOffset;
     this.updateSlide(time);
@@ -311,14 +343,14 @@ export class RhythmGame {
     const perfect = Math.abs(delta) <= hitWindow * .46;
     if (closest.path) {
       if (this.slide) return;
-      if (!input) {
+      if (!canHold) {
         this.feedback("Удерживай клавишу", "#e1c2ff");
         return;
       }
       this.hitSounds.play(true);
       this.slide = {
-        note: closest, input, perfect, delta, checkpoint: 1, lastLane: lane,
-        offPathSince: null, releaseReason: ""
+        note: closest, perfect, delta, checkpoint: 1, time, holding: true,
+        nextTick: closest.time + slideTick, offPathSince: null, resumeUntil: -Infinity
       };
       this.field.illuminate(lane, 8);
       this.feedback("Удерживай", "#e1c2ff");
@@ -328,8 +360,10 @@ export class RhythmGame {
   }
 
   slideTouches(min, max) {
-    const positions = this.slide.input.keyboard ? this.keys : this.pointers.values();
-    for (const position of positions) {
+    for (const position of this.keys) {
+      if (position >= min && position <= max) return true;
+    }
+    for (const position of this.pointers.values()) {
       if (position >= min && position <= max) return true;
     }
     return false;
@@ -338,73 +372,79 @@ export class RhythmGame {
   updateSlide(time) {
     const slide = this.slide;
     if (!slide) return;
+    time = slide.time = Math.max(time, slide.time);
     const path = slide.note.path;
     const end = path.at(-1);
-    const grace = Math.max(.115, this.settings.window * .83);
+    const grace = Math.max(.15, this.settings.window);
+    if (slide.offPathSince !== null && time > Math.max(slide.offPathSince + grace, slide.resumeUntil)) {
+      this.failSlide(time, this.slideFailure("Удержание ушло с маршрута"));
+      return;
+    }
     const checkpoint = path[slide.checkpoint];
-    if (checkpoint && time >= checkpoint.time - checkpointLead) {
-      if (time <= checkpoint.time + grace &&
-          this.slideTouches(checkpoint.lane - .57, checkpoint.lane + .57)) {
-        slide.checkpoint++;
-      } else if (time > checkpoint.time + grace) {
-        this.failSlide(time, slide.releaseReason || (checkpoint === end ? "Конец на другой дорожке" : "Пропущен поворот"));
+    if (checkpoint) {
+      const previous = path[slide.checkpoint - 1];
+      const lead = Math.min(.13, (checkpoint.time - previous.time) * .42);
+      const deadline = Math.max(checkpoint.time + grace, slide.resumeUntil);
+      if (time > deadline) {
+        this.failSlide(time, this.slideFailure(checkpoint === end ? "Конец на другой дорожке" : "Пропущен поворот"));
         return;
       }
+      if (time >= checkpoint.time - lead && this.slideTouches(checkpoint.lane - slideLaneTolerance, checkpoint.lane + slideLaneTolerance)) {
+        slide.checkpoint++;
+        if (checkpoint !== end) this.field.illuminate(checkpoint.lane, 10);
+      }
     }
 
-    if (time >= end.time && slide.checkpoint === path.length &&
-        this.slideTouches(end.lane - .57, end.lane + .57)) {
-      this.completeSlide();
-      return;
-    }
-    if (time > end.time + grace) {
-      this.failSlide(time, slide.releaseReason || "Конец на другой дорожке");
-      return;
-    }
-
+    const from = path[slide.checkpoint - 1];
+    const to = path[slide.checkpoint] ?? from;
+    const incoming = time <= from.time + .08 ? (path[slide.checkpoint - 2] ?? from) : from;
+    const wasHolding = slide.holding;
+    slide.holding = this.slideTouches(
+      Math.min(incoming.lane, from.lane, to.lane) - slideLaneTolerance,
+      Math.max(incoming.lane, from.lane, to.lane) + slideLaneTolerance
+    );
+    slide.offPathSince = slide.holding ? null : (slide.offPathSince ?? time);
     const lane = laneAt(path, time);
-    const behind = laneAt(path, time - .085);
-    const ahead = laneAt(path, time + .07);
-    const min = Math.min(lane, behind, ahead) - .58;
-    const max = Math.max(lane, behind, ahead) + .58;
-    if (this.slideTouches(min, max)) {
-      slide.offPathSince = null;
-      slide.releaseReason = "";
-      const nearest = Math.round(lane);
-      if (nearest !== slide.lastLane) {
-        slide.lastLane = nearest;
-        this.field.illuminate(lane, 10);
-      }
-    } else {
-      slide.offPathSince ??= time;
-      if (time - slide.offPathSince > grace) {
-        this.failSlide(time, slide.releaseReason || "Удержание ушло с маршрута");
-      }
+    while (slide.nextTick <= time && slide.nextTick < end.time - releaseLead) {
+      const tickTime = slide.nextTick;
+      slide.nextTick += slideTick;
+      if (!slide.holding || (!wasHolding && tickTime < time - .015)) continue;
+      this.increaseCombo(lane);
+      this.field.illuminate(lane, 5);
+      this.updateCombo();
     }
+    if (slide.checkpoint !== path.length || time < end.time) return;
+    if (this.slideTouches(end.lane - slideLaneTolerance, end.lane + slideLaneTolerance)) this.completeSlide();
+    else if (time > Math.max(end.time + grace, slide.resumeUntil)) {
+      this.failSlide(time, this.slideFailure("Конец на другой дорожке"));
+    }
+  }
+
+  slideFailure(fallback) {
+    return this.keys.size || this.pointers.size ? fallback : "Отпущен раньше конца";
   }
 
   releasePointer(event, cancelled) {
     if (!this.pointers.has(event.pointerId)) return;
-    if (this.slide && !this.slide.input.keyboard) {
-      const time = this.playedTime() - this.timingOffset;
-      if (!cancelled) {
-        const position = this.field.lanePosition(event.clientX, event.clientY);
-        this.pointers.set(event.pointerId, position);
-        this.updateSlide(time);
-        if (this.slide) {
-          const path = this.slide.note.path;
-          const end = path.at(-1);
-          if (this.slide.checkpoint === path.length && time >= end.time - releaseLead &&
-              Math.abs(position - end.lane) <= .57) this.completeSlide();
-        }
-      }
-      this.pointers.delete(event.pointerId);
-      if (this.slide && !this.pointers.size) {
-        this.slide.offPathSince ??= time;
-        this.slide.releaseReason = cancelled ? "Удержание прервано" : "Отпущен раньше конца";
-      }
-    } else this.pointers.delete(event.pointerId);
+    const time = this.slide && this.phase === "playing" ? this.playedTime() - this.timingOffset : null;
+    if (time !== null && !cancelled) {
+      const position = this.field.lanePosition(event.clientX, event.clientY);
+      this.pointers.set(event.pointerId, position);
+      this.releaseSlideInput(time, position);
+    }
+    this.pointers.delete(event.pointerId);
+    if (time !== null) this.updateSlide(time);
     this.lightPads();
+  }
+
+  releaseSlideInput(time, position) {
+    this.updateSlide(time);
+    const slide = this.slide;
+    if (!slide) return;
+    const path = slide.note.path;
+    const end = path.at(-1);
+    if (slide.checkpoint === path.length && slide.time >= end.time - releaseLead &&
+        Math.abs(position - end.lane) <= slideLaneTolerance) this.completeSlide();
   }
 
   completeSlide() {
@@ -419,7 +459,7 @@ export class RhythmGame {
     this.field.fadeSlide(note, time, true);
     note.judged = true;
     this.misses++;
-    this.combo = 0;
+    this.resetCombo();
     this.feedback("Слайд сорван", "#ffceb9", reason);
     this.updateScores();
   }
@@ -427,17 +467,28 @@ export class RhythmGame {
   hit(note, perfect, lane, delta) {
     this.hitSounds.play(true, perfect);
     note.judged = true;
-    this.combo++;
-    this.maxCombo = Math.max(this.maxCombo, this.combo);
+    this.increaseCombo(lane);
+    this.scoringCombo++;
     if (perfect) this.perfect++;
     else this.good++;
     const points = perfect ? 1000 : 650;
-    this.score += (note.path ? Math.round(points * 1.45) : points) + Math.min((this.combo - 1) * 12, 360);
+    this.score += (note.path ? Math.round(points * 1.45) : points) + Math.min((this.scoringCombo - 1) * 12, 360);
     this.field.illuminate(lane, note.path ? 25 : perfect ? 19 : 10);
-    if (this.combo % 10 === 0) this.field.celebrate(lane, this.combo);
     this.feedback(perfect ? "Идеально" : "Хорошо", perfect ? "#ffa9dc" : "#9decf5",
       this.timingText(delta));
     this.updateScores();
+  }
+
+  increaseCombo(lane) {
+    this.combo++;
+    this.maxCombo = Math.max(this.maxCombo, this.combo);
+    const tier = comboTier(this.combo);
+    if (tier) this.field.celebrate(lane, this.combo, tier);
+  }
+
+  resetCombo() {
+    this.combo = 0;
+    this.scoringCombo = 0;
   }
 
   markMisses(time, all = false) {
@@ -451,7 +502,7 @@ export class RhythmGame {
       if (note.path && !all) this.field.fadeSlide(note, note.time, false);
       this.recentMisses[note.lane] = note.time;
       this.misses++;
-      this.combo = 0;
+      this.resetCombo();
       changed = true;
     }
     if (changed) {
@@ -506,7 +557,7 @@ export class RhythmGame {
     const label = item("combo");
     label.textContent = formatNumber.format(this.combo);
     label.setAttribute("aria-label", "Комбо " + this.combo);
-    label.hidden = this.combo < 2;
+    label.hidden = !this.combo;
     if (this.combo === previous) return;
     this.displayedCombo = this.combo;
 
@@ -514,24 +565,25 @@ export class RhythmGame {
     const stable = "scale(" + scale + ")";
     label.style.setProperty("--combo-scale", scale);
     const increasing = this.combo > previous;
-    const milestone = increasing && this.combo % 10 === 0;
-    if (increasing && !milestone && this.comboMilestone && this.comboAnimation?.playState === "running") return;
+    const tier = increasing ? comboTier(this.combo) : 0;
+    if (increasing && tier < this.comboAnimationTier && this.comboAnimation?.playState === "running") return;
     this.comboAnimation?.cancel();
     if (!increasing || this.field.motion.matches || !label.animate) return;
 
-    this.comboMilestone = milestone;
-    const frames = milestone ? [
+    this.comboAnimationTier = tier;
+    const effect = comboTiers[tier];
+    const frames = effect ? [
       { transform: stable },
-      { transform: "translateX(-5px) rotate(-9deg) scale(" + (scale + .48) + ")", color: "#fff8ce", offset: .2 },
-      { transform: "translateX(5px) rotate(7deg) scale(" + (scale + .24) + ")", color: "#d5fdff", offset: .42 },
-      { transform: "translateX(-2px) rotate(-4deg) scale(" + (scale + .13) + ")", color: "#efc5ff", offset: .62 },
+      { transform: `translateX(${-effect.shake}px) rotate(${-effect.shake}deg) scale(${scale + effect.scale})`, color: effect.color, offset: .2 },
+      { transform: `translateX(${effect.shake}px) rotate(${effect.shake * .7}deg) scale(${scale + effect.scale * .5})`, color: "#fff", offset: .42 },
+      { transform: `translateX(${-effect.shake * .4}px) scale(${scale + effect.scale * .2})`, color: effect.color, offset: .64 },
       { transform: stable }
     ] : [
       { transform: stable },
       { transform: "scale(" + (scale + .075) + ")", offset: .3 },
       { transform: stable }
     ];
-    this.comboAnimation = label.animate(frames, { duration: milestone ? 660 : 160, easing: "ease-out" });
+    this.comboAnimation = label.animate(frames, { duration: effect?.duration ?? 155, easing: "ease-out" });
   }
 
   updateProgress(time) {
@@ -590,6 +642,6 @@ export class RhythmGame {
   }
 
   draw(time) {
-    this.field.draw(this.notes, this.missCursor, time - this.timingOffset, this.settings.approach, this.slide?.note, this.phase === "playing");
+    this.field.draw(this.notes, this.missCursor, time - this.timingOffset, this.settings.approach, this.slide, this.phase === "playing");
   }
 }

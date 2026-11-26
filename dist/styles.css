@@ -131,6 +131,7 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
 .source-row { display: flex; align-items: center; min-height: 31px; margin: 6px 0 24px; overflow: hidden; }
 .file-button, .text-button { display: inline-flex; align-items: center; gap: 7px; padding: 0; min-height: 31px; border: 0; background: transparent; color: #d4a6f7; font-size: .87rem; font-weight: 700; }
 .home .file-button { color: #bfdaae; }
+.native-file-caption { display: none; }
 .home .file-button:hover:not(:disabled) { color: #dbff83; }
 .file-button:hover:not(:disabled), .text-button:hover:not(:disabled) { color: #ffaddd; text-decoration: underline; }
 .streaming-source { margin: 9px 0 3px; padding: 9px 11px; border: 1px solid #563c72; border-radius: 9px; background: #221831; }
@@ -466,6 +467,109 @@ svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: middle; fill: non
   .mobile-play #combo { font-size: clamp(2rem, 9vw, 4.7rem); }
   .mobile-play .countdown { font-size: clamp(2.5rem, 11vh, 5.3rem); }
 }
+
+.native-app .page-width, .native-app .header-inner {
+  width: auto;
+  max-width: 1080px;
+  margin-inline: auto;
+  padding-left: max(14px, env(safe-area-inset-left, 0px));
+  padding-right: max(14px, env(safe-area-inset-right, 0px));
+}
+.native-app .header-inner { min-height: 52px; }
+.native-app .brand { gap: 8px; font-size: 1rem; }
+.native-app .brand-icon { width: 30px; height: 30px; border-radius: 9px; }
+.native-app .header-actions { gap: 5px; }
+.native-app .header-actions .quiet-button {
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 1rem;
+}
+.native-app .header-actions span, .native-app .paste-button span, .native-app .file-type-caption { display: none; }
+.native-app .native-file-caption { display: inline; }
+.native-app .home {
+  grid-template-columns: minmax(135px, .7fr) minmax(0, 1.3fr);
+  gap: 10px;
+  padding-block: 10px max(10px, env(safe-area-inset-bottom, 0px));
+}
+.native-app .hero {
+  min-height: 0;
+  border-radius: 15px;
+  background-position: center, 72% center;
+}
+.native-app .hero-copy { width: 100%; min-width: 0; padding: clamp(10px, 2.3vw, 21px); }
+.native-app .hero h1 { margin-bottom: 10px; font-size: clamp(1.55rem, 4.1vw, 3.2rem); }
+.native-app .hero p { display: none; }
+.native-app .demo-button {
+  width: 100%;
+  min-height: 44px;
+  padding: 5px 8px;
+  border-color: #b4d97b70;
+  background: #25331b;
+  box-shadow: none;
+  color: #e0f5c9;
+  font-size: .8rem;
+}
+.native-app .setup { padding: 13px; border-radius: 15px; align-content: start; }
+.native-app .section-heading { margin-bottom: 10px; }
+.native-app .section-heading h2 { font-size: clamp(1.2rem, 2.8vw, 1.65rem); letter-spacing: -.04em; }
+.native-app .field-label { margin-bottom: 5px; font-size: .78rem; }
+.native-app .track-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.native-app .url-field { min-height: 44px; padding: 0 0 0 8px; gap: 6px; }
+.native-app .field-icon { width: 14px; height: 14px; }
+.native-app .url-field input { font-size: .86rem; }
+.native-app .paste-button { min-height: 42px; width: 40px; padding: 0; border-width: 0 0 0 1px; }
+.native-app .source-row { margin: 0; max-width: clamp(105px, 23vw, 160px); }
+.native-app .file-button {
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 9px;
+  border: 1px solid #8da76580;
+  border-radius: 10px;
+  background: #28351d;
+  font-size: .77rem;
+  color: #e7f2cf;
+}
+.native-app .file-tag { background: #24321f; border-color: #708a506b; color: #e7f2cf; }
+.native-app .file-tag .icon-button { width: 32px; height: 36px; }
+.native-app .streaming-source { margin: 0 0 9px; }
+.native-app .field-error { margin: 0 0 8px; }
+.native-app .difficulty { margin-bottom: 9px; }
+.native-app .difficulty-options { gap: 4px; }
+.native-app .difficulty-card { min-height: 44px; gap: 3px; border-radius: 7px; font-size: clamp(.59rem, 1.5vw, .78rem); }
+.native-app .difficulty-detail { min-height: 0; margin: 5px 0 0; font-size: .72rem; }
+.native-app .generate-button { min-height: 44px; padding: 5px 8px; font-size: .85rem; }
+
+@media (max-height: 350px) and (min-width: 441px) {
+  .native-app .header-inner { min-height: 46px; }
+  .native-app .home { padding-block: 6px max(6px, env(safe-area-inset-bottom, 0px)); }
+  .native-app .setup { padding: 10px; }
+  .native-app .section-heading, .native-app .track-controls { margin-bottom: 7px; }
+  .native-app .difficulty-detail { display: none; }
+}
+@media (max-height: 300px) and (min-width: 441px) {
+  .native-app .section-heading { display: none; }
+}
+@media (max-width: 560px) {
+  .native-app .field-icon { display: none; }
+  .native-app .url-field input { font-size: .75rem; }
+  .native-app .file-button { gap: 4px; padding-inline: 6px; }
+}
+@media (max-width: 440px) {
+  .native-app .home { grid-template-columns: minmax(0, 1fr); }
+  .native-app .setup { grid-row: 1; }
+  .native-app .hero-copy { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .native-app .hero h1 { margin: 0; }
+  .native-app .demo-button { width: auto; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; }
   .stage-bloom { display: none; }

@@ -39,6 +39,7 @@ export class StageEffects {
     this.pulse = 0;
     this.streakBurst = -Infinity;
     this.streakPower = 0;
+    this.streakTier = 0;
     this.bloomOpacity = -1;
     this.lightOpacity = -1;
     this.shadeOpacity = -1;
@@ -83,10 +84,11 @@ export class StageEffects {
     });
   }
 
-  celebrate(now, combo) {
-    if (this.motion.matches) return;
+  celebrate(now, tier, combo) {
+    if (this.motion.matches || tier < 2) return;
     this.streakBurst = now;
-    this.streakPower = Math.min(.98, .59 + combo * .008);
+    this.streakTier = tier;
+    this.streakPower = tier === 2 ? .36 : tier === 3 ? .68 : Math.min(1, .82 + (combo - 100) * .0006);
   }
 
   setBloom(opacity, spread) {
@@ -127,7 +129,7 @@ export class StageEffects {
     const opening = age < 0 ? smooth((age + 1.45) / 1.45) : 0;
     const peak = age >= 0 ? smooth(age / .24) * (1 - smooth((age - .85) / 2.6)) : 0;
     const streakAge = (now - this.streakBurst) / 1000;
-    const streak = smooth(streakAge / .13) * (1 - smooth((streakAge - .16) / 1.19)) * this.streakPower;
+    const streak = smooth(streakAge / .13) * (1 - smooth((streakAge - .16) / (.28 * this.streakTier))) * this.streakPower;
     const calm = 1 - load * .75;
     const energy = Math.max(peak * .60 * calm, streak);
     const spread = Math.max(opening * .32 * calm, energy);
@@ -142,13 +144,16 @@ export class StageEffects {
       this.drawSurge(age, .50 * calm);
       this.drawPrisms(age, .56 * calm);
     }
-    if (streakAge < 1.24) {
-      this.drawSurge(streakAge, this.streakPower);
-      this.drawPrisms(streakAge, this.streakPower);
+    if (streakAge < 1.6) {
+      this.drawSurge(streakAge, this.streakPower, this.streakTier - 1);
+      if (this.streakTier === 4) {
+        this.drawStreakWings(streakAge);
+        this.drawPrisms(streakAge, this.streakPower);
+      }
     }
     ctx.restore();
 
-    if (streakAge < 1.1) this.wave = .012 + streakAge / 1.1;
+    if (this.streakTier >= 3 && streakAge < 1.1) this.wave = .012 + streakAge / 1.1;
     else if (load < .42 && age >= 0 && age < 1.1) this.wave = .012 + age / 1.1;
   }
 
@@ -212,10 +217,10 @@ export class StageEffects {
     }
   }
 
-  drawSurge(age, strength) {
+  drawSurge(age, strength, echoes = 3) {
     const ctx = this.ctx;
     const span = Math.min(this.height, this.width);
-    for (let echo = 0; echo < 3; echo++) {
+    for (let echo = 0; echo < echoes; echo++) {
       const progress = (age - echo * .14) / 1.12;
       if (progress < 0 || progress >= 1) continue;
       const radius = (1 - (1 - progress) ** 2) * this.width * .68 + span * .075;
@@ -225,6 +230,29 @@ export class StageEffects {
       ctx.lineWidth = (1 - progress) * 4 + .7;
       ctx.strokeStyle = this.colors[echo];
       ctx.stroke();
+    }
+  }
+
+  drawStreakWings(age) {
+    const ctx = this.ctx;
+    const span = Math.min(this.height, this.width);
+    const progress = unit(age / 1.28);
+    const fade = smooth(progress / .13) * (1 - progress) ** 1.3 * this.streakPower;
+    if (!fade) return;
+    const x = this.width / 2;
+    const y = this.horizon + span * .15;
+    const spread = (.24 + progress * .36) * this.width;
+    ctx.globalAlpha = fade * .70;
+    for (let side = -1; side <= 1; side += 2) {
+      for (let ribbon = 0; ribbon < 3; ribbon++) {
+        const lift = span * (.15 + ribbon * .065);
+        ctx.beginPath();
+        ctx.moveTo(x + side * span * .12, y);
+        ctx.bezierCurveTo(x + side * spread * .40, y - lift, x + side * spread * .65, y + lift, x + side * spread, y + lift * 1.65);
+        ctx.lineWidth = 3 - ribbon * .7;
+        ctx.strokeStyle = this.colors[(ribbon + (side > 0 ? 1 : 0)) % this.colors.length];
+        ctx.stroke();
+      }
     }
   }
 
