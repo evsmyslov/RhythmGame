@@ -1,7 +1,12 @@
-import { parseTrackLink, prepareTrack, streamingReference } from "./audio.js?v=14";
-import { RhythmGame } from "./game.js?v=14";
-import { LobbyMusic } from "./sound.js?v=14";
-import { bindCalibration } from "./timing.js?v=14";
+import { bindLibrary } from "./library.js?v=15";
+import { initLanguage, t } from "./i18n.js?v=15";
+import { prepareTrack } from "./audio.js?v=15";
+import { parseTrackLink, streamingReference } from "./track-links.js?v=15";
+import { RhythmGame } from "./game.js?v=15";
+import { LobbyMusic } from "./sound.js?v=15";
+import { bindCalibration } from "./timing.js?v=15";
+
+initLanguage();
 
 const item = id => document.getElementById(id);
 const form = item("setup");
@@ -15,14 +20,18 @@ const removeFile = item("remove-file");
 const errorMessage = item("source-error");
 const home = item("home");
 const gameScreen = item("game");
+const nativeApp = location.hostname === "appassets.androidplatform.net";
+document.documentElement.classList.toggle("native-app", nativeApp);
+let androidPaused = false;
 const game = new RhythmGame(enterLandscape);
 const lobbyMusic = new LobbyMusic(item("lobby-music"), item("lobby-music-button"));
 const fullscreenButton = item("fullscreen-button");
-fullscreenButton.hidden = !document.fullscreenEnabled || !gameScreen.requestFullscreen;
+fullscreenButton.hidden = nativeApp || !document.fullscreenEnabled || !gameScreen.requestFullscreen;
 let fullscreenNoticeTimer = null;
 let landscapeRequest;
 
 function enterLandscape() {
+  if (nativeApp) return;
   if (!gameScreen.classList.contains("mobile-play") || !screen.orientation?.lock || landscapeRequest) return;
   landscapeRequest = lockLandscape().finally(() => { landscapeRequest = null; });
 }
@@ -54,7 +63,7 @@ fullscreenButton.addEventListener("click", async () => {
 });
 document.addEventListener("fullscreenchange", () => {
   const fullscreen = document.fullscreenElement === gameScreen;
-  const label = fullscreen ? "Выйти из полноэкранного режима" : "Во весь экран";
+  const label = t(fullscreen ? "Выйти из полноэкранного режима" : "Во весь экран");
   fullscreenButton.setAttribute("aria-label", label);
   fullscreenButton.title = label;
   fullscreenButton.querySelector("use").setAttribute("href", fullscreen ? "#i-minimize" : "#i-fullscreen");
@@ -73,25 +82,29 @@ const difficultyHints = [
 ];
 const difficultyControl = form.elements.namedItem("difficulty");
 function describeDifficulty() {
-  item("difficulty-detail").textContent = difficultyHints[Number(difficultyControl.value) - 1];
+  item("difficulty-detail").textContent = t(difficultyHints[Number(difficultyControl.value) - 1]);
 }
 form.addEventListener("change", event => {
   if (event.target.name === "difficulty") describeDifficulty();
 });
 describeDifficulty();
+document.addEventListener("languagechange", () => {
+  describeDifficulty();
+  updateStreamingSource();
+});
 
 bindCalibration(() => {
   if (job || !gameScreen.hidden) return false;
   lobbyMusic.setInLobby(false);
 }, offset => {
   game.timingOffset = offset;
-  if (gameScreen.hidden) lobbyMusic.setInLobby(true);
+  if (gameScreen.hidden && !androidPaused) lobbyMusic.setInLobby(true);
 });
 
 if (location.hash === "#play") history.replaceState(null, "", location.pathname + location.search);
 
 function setError(message = "", onLink = false) {
-  errorMessage.textContent = message;
+  errorMessage.textContent = t(message);
   errorMessage.hidden = !message;
   if (message && onLink) trackURL.setAttribute("aria-invalid", "true");
   else trackURL.removeAttribute("aria-invalid");
@@ -103,8 +116,12 @@ function updateStreamingSource() {
   if (!reference) return;
   const link = item("streaming-link");
   link.href = reference.url;
-  link.querySelector("span").textContent = "Открыть в " + reference.provider;
-  item("streaming-hint").hidden = Boolean(file);
+  link.querySelector("span").textContent = t("Открыть в ", "Open in ") + reference.provider;
+  const hint = item("streaming-hint");
+  hint.hidden = Boolean(file);
+  hint.textContent = t(reference.provider === "Spotify"
+    ? "Трек откроется в Spotify. В некоторых регионах и без входа доступен только фрагмент."
+    : "Трек откроется в плеере. Темп можно задать перед игрой.");
 }
 
 function setFile(selected) {
@@ -168,7 +185,7 @@ demoButton.addEventListener("click", () => generate(true));
 
 function setBusy(busy) {
   const controls = [startGeneration, demoButton, item("paste-button"), trackURL, fileButton,
-    removeFile, item("timing-button"), ...difficultyControl];
+    removeFile, item("timing-button"), ...document.querySelectorAll("[data-tab]"), ...difficultyControl];
   controls.forEach(control => { control.disabled = busy; });
   item("generation-status").hidden = !busy;
 }
@@ -186,11 +203,6 @@ async function generate(demo) {
   let url;
   const source = trackURL.value.trim();
   const reference = streamingReference(source);
-  if (!demo && reference && !file) {
-    setError("Для этой ссылки выбери аудио или видео с этой песней.");
-    fileButton.focus();
-    return;
-  }
   if (!demo && !reference && (source || !file)) {
     try {
       if (!source) throw new Error("Вставь ссылку на трек или выбери файл.");
@@ -207,13 +219,13 @@ async function generate(demo) {
   returnFocus = demo ? demoButton : startGeneration;
   setBusy(true);
   try {
-    const track = await prepareTrack({
+    const track = !demo && reference && !file ? { reference, difficulty } : await prepareTrack({
       file: demo || url ? null : file,
       url,
       demo,
       difficulty
     }, controller.signal, message => {
-      if (job === controller) item("status-text").textContent = message;
+      if (job === controller) item("status-text").textContent = t(message);
     });
     if (job === controller) showGame(track);
   } catch (error) {
@@ -227,6 +239,7 @@ async function generate(demo) {
 }
 
 function showGame(track) {
+  item("result-board").hidden = !track.id;
   lobbyMusic.setInLobby(false);
   history.pushState({ rhythmGame: true }, "", "#play");
   document.body.classList.add("playing-view");
@@ -280,8 +293,10 @@ item("help-button").addEventListener("click", () => {
 });
 
 const installButton = item("install-button");
-installButton.setAttribute("aria-label", "Установить приложение");
-const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+const labelInstall = () => installButton.setAttribute("aria-label", t("Установить приложение"));
+labelInstall();
+document.addEventListener("languagechange", labelInstall);
+const standalone = nativeApp || matchMedia("(display-mode: standalone)").matches || navigator.standalone;
 let installPrompt = null;
 installButton.hidden = Boolean(standalone);
 
@@ -307,4 +322,24 @@ installButton.addEventListener("click", async () => {
   item("install-dialog").showModal();
 });
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+if (!nativeApp && "serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+
+
+bindLibrary(track => {
+  returnFocus = item("play-map");
+  showGame(track);
+}, exitGame);
+
+if (nativeApp) {
+  window.addEventListener("pulsewake-pause", () => {
+    androidPaused = true;
+    game.pause(false);
+    game.stream?.player?.pause();
+    if (item("timing-dialog").open) item("timing-dialog").close();
+    lobbyMusic.setInLobby(false);
+  });
+  window.addEventListener("pulsewake-resume", () => {
+    androidPaused = false;
+    if (gameScreen.hidden && !item("timing-dialog").open) lobbyMusic.setInLobby(true);
+  });
+}

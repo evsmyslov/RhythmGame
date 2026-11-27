@@ -1,3 +1,4 @@
+import { t } from "./i18n.js?v=15";
 const lobbyPreference = "ritm-lobby-music";
 
 export class LobbyMusic {
@@ -30,6 +31,7 @@ export class LobbyMusic {
     };
     document.addEventListener("click", activate, true);
     document.addEventListener("keydown", activate, true);
+    document.addEventListener("languagechange", () => this.updateButton());
     document.addEventListener("visibilitychange", () => this.sync());
     window.addEventListener("pagehide", () => audio.pause());
     window.addEventListener("pageshow", () => this.sync());
@@ -53,7 +55,7 @@ export class LobbyMusic {
   updateButton() {
     const playing = !this.audio.paused && !this.audio.error;
     this.button.setAttribute("aria-pressed", String(playing));
-    this.button.title = playing ? "Выключить музыку в лобби" : "Включить музыку в лобби";
+    this.button.title = t(playing ? "Выключить музыку в лобби" : "Включить музыку в лобби");
     this.button.querySelector("use").setAttribute("href", playing ? "#i-volume" : "#i-volume-off");
   }
 }

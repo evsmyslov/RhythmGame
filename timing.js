@@ -1,10 +1,11 @@
+import { t } from "./i18n.js?v=15";
 const preference = "ritm-timing-offset";
 const limit = 220;
 const beat = .56;
 const tapsNeeded = 8;
 const item = id => document.getElementById(id);
 const clamp = value => Math.max(-limit, Math.min(limit, Math.round(value)));
-const display = value => (value > 0 ? "+" : value < 0 ? "−" : "") + Math.abs(value) + " мс";
+const display = value => (value > 0 ? "+" : value < 0 ? "−" : "") + Math.abs(value) + t(" мс", " ms");
 
 export function timingOffset() {
   try {
@@ -74,13 +75,13 @@ export function bindCalibration(onOpen, onClose) {
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden || !context) return;
     stop();
-    status.textContent = "Запусти тест ещё раз.";
+    status.textContent = t("Запусти тест ещё раз.");
   });
 
   start.addEventListener("click", async () => {
     stop();
     start.disabled = true;
-    status.textContent = "Запускаем метроном…";
+    status.textContent = t("Запускаем метроном…");
     let trial;
     try {
       const Audio = window.AudioContext || window.webkitAudioContext;
@@ -109,12 +110,12 @@ export function bindCalibration(onOpen, onClose) {
       schedule();
       timer = setInterval(schedule, 80);
       tap.disabled = false;
-      status.textContent = "Нажатия 0 из " + tapsNeeded;
+      status.textContent = t("Нажатия 0 из " + tapsNeeded, "Taps 0 of " + tapsNeeded);
       tap.focus({ preventScroll: true });
     } catch {
       if (!dialog.open || (trial && trial !== context)) return;
       stop();
-      status.textContent = "Звук недоступен. Смещение можно настроить вручную.";
+      status.textContent = t("Звук недоступен. Смещение можно настроить вручную.");
     }
   });
 
@@ -126,19 +127,19 @@ export function bindCalibration(onOpen, onClose) {
     if (index <= lastTap || Math.abs(difference) > .245) return;
     lastTap = index;
     samples.push(difference * 1000);
-    status.textContent = "Нажатия " + samples.length + " из " + tapsNeeded;
+    status.textContent = t("Нажатия " + samples.length + " из " + tapsNeeded, "Taps " + samples.length + " of " + tapsNeeded);
     if (samples.length < tapsNeeded) return;
     const measured = samples.slice(2).sort((left, right) => left - right);
     const middle = measured.length / 2;
     const estimate = clamp((measured[middle - 1] + measured[middle]) / 2);
     stop();
     if (measured.at(-2) - measured[1] > 130) {
-      status.textContent = "Темп нажатий менялся. Попробуй ещё раз.";
+      status.textContent = t("Темп нажатий менялся. Попробуй ещё раз.");
       start.focus();
       return;
     }
     show(estimate);
-    status.textContent = "Измеренное смещение " + display(estimate) + ".";
+    status.textContent = t("Измеренное смещение ", "Measured offset ") + display(estimate) + ".";
     item("timing-save").focus();
   }
   tap.addEventListener("pointerdown", event => {

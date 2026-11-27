@@ -21,7 +21,6 @@ export function trackPalette(key = "", brightness = .5) {
   return {
     lanes,
     rays: [lanes[0], lanes[2], lanes[3]],
-    road: hex(hue + 24, .61, .13),
     sky: hex(hue + 36, .76, .57),
     accent: lanes[0]
   };

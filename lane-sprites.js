@@ -56,33 +56,15 @@ function drawNote(ctx, color) {
 }
 
 function drawTarget(ctx, color, lit) {
-  const rim = tint(ctx, -19, 22, [[0, "#eafffd"], [.3, color], [1, color + "8f"]]);
-  const face = tint(ctx, -16, 17, lit
-    ? [[0, "#fbfffe"], [.45, color], [1, color + "ef"]]
-    : [[0, color + "36"], [.48, "#0e1633de"], [1, color + "76"]]);
-  ellipse(ctx, 0, 4.5, 34, 19, "#0c1529", color + "69", 1.65);
-  ellipse(ctx, 0, 0, 34, 19, face, rim, lit ? 3.2 : 2.6);
-  ellipse(ctx, 0, -.5, 27, 14, null, lit ? "#ffffff" : color + "cc", 1.65);
-  ellipse(ctx, 0, -.5, 16, 7.5, lit ? "#ffffffc9" : color + "20", lit ? "#ffffffa3" : color + "7a", 1);
+  ellipse(ctx, 0, 2, 33, 17, lit ? color + "ae" : "#15202e48");
+  ellipse(ctx, 0, 0, 33, 17, null, lit ? "#f2ffff" : "#eff8ffc2", lit ? 2.8 : 2);
+  ellipse(ctx, 0, 0, 26, 12.8, null, lit ? color : "#d2e8ff8a", 1.5);
 }
 
 function drawSlideCap(ctx, color, tail) {
-  const surface = tint(ctx, -16, 18, [[0, "#ecfffc"], [.4, color], [1, "#294d6f"]]);
-  ellipse(ctx, 0, 2.5, 33, 17, "#101b34", color + "d5", 1.7);
-  ellipse(ctx, 0, -1, 31.5, 16, surface, "#f3fff9", 1.9);
-  if (tail) {
-    ellipse(ctx, 0, -1, 13, 6.5, "#1b3551", "#eafcff", 1.2);
-  } else {
-    ctx.strokeStyle = "#1b3551";
-    ctx.lineWidth = 2.8;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(-10, 3);
-    ctx.lineTo(0, -5);
-    ctx.lineTo(10, 3);
-    ctx.stroke();
-  }
+  const surface = tint(ctx, -17, 18, [[0, "#fffbe4"], [.34, "#fff9d8"], [.72, color], [1, color + "e5"]]);
+  ellipse(ctx, 0, 1, 32, 16, surface, color, 2.4);
+  ellipse(ctx, -2, -5, tail ? 10 : 17, 4.8, "#ffffedb8");
 }
 
 function drawSpark(ctx, color) {
@@ -119,20 +101,24 @@ function drawCelebrationSparks(ctx, color) {
 }
 
 export function buildLaneSprites(colors) {
-  return colors.map(color => ({
-    note: texture(108, 66, ctx => drawNote(ctx, color), 2),
-    slide: texture(72, 44, ctx => drawSlideCap(ctx, color, false), 2.5),
-    tail: texture(72, 44, ctx => drawSlideCap(ctx, color, true), 2.5),
-    target: texture(78, 54, ctx => drawTarget(ctx, color, false), 2.5),
-    targetLit: texture(78, 54, ctx => drawTarget(ctx, color, true), 2.5),
-    aura: texture(148, 98, ctx => {
-      ctx.scale(1, .65);
-      glow(ctx, color, 74, color);
-    }),
-    flash: texture(156, 118, ctx => drawSpark(ctx, color)),
-    ring: texture(70, 44, ctx => ellipse(ctx, 0, 0, 32, 19, null, color, 1.75)),
-    celebration: texture(140, 70, ctx => drawCelebrationSparks(ctx, color))
-  }));
+  const note = texture(108, 66, ctx => drawNote(ctx, "#59dcff"), 2);
+  const flash = texture(156, 118, ctx => drawSpark(ctx, "#32dcff"));
+  return colors.map((color, lane) => {
+    const slideColor = lane % 2 ? "#ff6bb4" : "#ffc331";
+    return {
+      note, slideColor, flash,
+      slide: texture(72, 44, ctx => drawSlideCap(ctx, slideColor, false), 2.5),
+      tail: texture(72, 44, ctx => drawSlideCap(ctx, slideColor, true), 2.5),
+      target: texture(78, 54, ctx => drawTarget(ctx, color, false), 2.5),
+      targetLit: texture(78, 54, ctx => drawTarget(ctx, color, true), 2.5),
+      aura: texture(148, 98, ctx => {
+        ctx.scale(1, .65);
+        glow(ctx, color, 74, color);
+      }),
+      ring: texture(70, 44, ctx => ellipse(ctx, 0, 0, 32, 19, null, color, 1.75)),
+      celebration: texture(140, 70, ctx => drawCelebrationSparks(ctx, color))
+    };
+  });
 }
 
 export function drawLaneSprite(ctx, sprite, x, y, radius, verticalScale = 1) {
