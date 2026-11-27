@@ -1,10 +1,12 @@
-const currentCache = "ritm-v14";
+const currentCache = "ritm-v15";
 const files = [
-  "./", "./index.html", "./styles.css?v=14", "./app.js?v=14", "./audio.js?v=14", "./sound.js?v=14", "./game.js?v=14",
-  "./palette.js?v=14", "./records.js?v=14", "./timing.js?v=14", "./game-field.js?v=14", "./lane-sprites.js?v=14", "./stage-effects.js?v=14", "./chart-worker.js?v=14", "./manifest.webmanifest?v=14",
+  "./", "./index.html", "./styles.css?v=15", "./app.js?v=15", "./audio.js?v=15", "./sound.js?v=15", "./game.js?v=15",
+  "./i18n.js?v=15", "./library.js?v=15", "./catalog.js?v=15",
+  ...["glass-ferry", "copper-wire", "night-market", "red-shift", "ion-storm"].flatMap(id => ["./assets/tracks/" + id + ".mp3", "./assets/covers/" + id + ".webp"]),
+  "./stream-player.js?v=15", "./stream-level.js?v=15", "./track-links.js?v=15", "./palette.js?v=15", "./records.js?v=15", "./timing.js?v=15", "./game-field.js?v=15", "./lane-sprites.js?v=15", "./stage-effects.js?v=15", "./chart-worker.js?v=15", "./manifest.webmanifest?v=15",
   "./assets/aurora-stage.webp", "./assets/dusk-lake.webp", "./assets/spectral-bloom-alpha.webp", "./assets/neon-pulse.mp3", "./assets/night-circuit.mp3",
   "./assets/manrope-latin.woff2", "./assets/manrope-cyrillic.woff2",
-  "./assets/icon-192.png?v=14", "./assets/icon-512.png?v=14", "./assets/icon-maskable.png?v=14"
+  "./assets/icon-192.png?v=15", "./assets/icon-512.png?v=15", "./assets/icon-maskable.png?v=15"
 ];
 const lobbyTrack = new URL("./assets/night-circuit.mp3", self.registration.scope).href;
 const local = new Set(files.map(path => new URL(path, self.registration.scope).href));

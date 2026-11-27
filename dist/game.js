@@ -1,14 +1,15 @@
-import { difficulties } from "./audio.js?v=14";
-import { GameField, laneAt } from "./game-field.js?v=14";
-import { HitSounds } from "./sound.js?v=14";
-import { audibleTime, timingOffset } from "./timing.js?v=14";
-import { finishRecord, readBest } from "./records.js?v=14";
+import { formatNumber, t } from "./i18n.js?v=15";
+import { StreamLevel, tempoChart } from "./stream-level.js?v=15";
+import { difficulties } from "./audio.js?v=15";
+import { GameField, laneAt } from "./game-field.js?v=15";
+import { HitSounds } from "./sound.js?v=15";
+import { audibleTime, timingOffset } from "./timing.js?v=15";
+import { finishRecord, readBest } from "./records.js?v=15";
 const releaseLead = .055;
 const slideTick = .18;
 const slideLaneTolerance = .59;
 const feedbackDuration = 560;
 const keyLanes = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
-const formatNumber = new Intl.NumberFormat("ru");
 const percent = value => Math.round(value * 100) + "%";
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const item = id => document.getElementById(id);
@@ -98,7 +99,11 @@ export class RhythmGame {
       if (time !== null) this.updateSlide(time);
       this.lightPads();
     });
-    window.addEventListener("blur", () => this.pause(false));
+    window.addEventListener("blur", () => {
+      setTimeout(() => {
+        if (!document.hasFocus() && !item("player-host").contains(document.activeElement)) this.pause(false);
+      }, 0);
+    });
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) this.pause(false);
     });
@@ -109,6 +114,8 @@ export class RhythmGame {
   }
 
   open(track) {
+    document.querySelector(".game-layout").classList.toggle("with-player", Boolean(track.reference));
+    if (track.reference) Object.assign(track, { notes: [], duration: 0, paletteId: track.reference.url });
     this.track = track;
     this.settings = difficulties[track.difficulty];
     this.field.setTrack(track);
@@ -118,12 +125,45 @@ export class RhythmGame {
     this.reset();
     this.showReady(false);
     this.resize();
-    item("start-button").focus({ preventScroll: true });
+    if (track.reference) this.connectStream();
+    else item("start-button").focus({ preventScroll: true });
+  }
+
+  async connectStream() {
+    const track = this.track;
+    this.stream?.close();
+    const stream = this.stream = new StreamLevel(track.reference);
+    const button = item("start-button");
+    button.disabled = true;
+    item("play-error").hidden = true;
+    item("ready-title").textContent = t(track.reference.provider);
+    item("ready-detail").textContent = t("Подключаем плеер…");
+    try {
+      await stream.connect();
+      if (this.stream !== stream) return;
+      this.showReady(false);
+    } catch (error) {
+      if (this.stream !== stream) return;
+      stream.close();
+      this.stream = null;
+      item("ready-detail").textContent = t("Не удалось открыть трек");
+      item("play-error").textContent = t(error.message || "Проверь ссылку на трек.");
+      item("play-error").hidden = false;
+      button.querySelector("span").textContent = t("Попробовать ещё раз");
+    } finally {
+      if (track === this.track) button.disabled = false;
+    }
   }
 
   close() {
+    this.pendingStart?.controller.abort();
+    this.pendingStart = null;
     this.stopAudio();
+    this.stream?.close();
+    this.stream = null;
     this.phase = "idle";
+    item("start-button").disabled = false;
+    item("replay-button").disabled = false;
     this.comboAnimation?.cancel();
     this.clearInputs();
     this.track = null;
@@ -160,15 +200,20 @@ export class RhythmGame {
     item("results-screen").hidden = true;
     item("ready-screen").hidden = false;
     item("play-error").hidden = true;
-    item("ready-title").textContent = paused ? "Пауза" : "Уровень готов";
-    item("ready-detail").textContent = this.settings.stars + " · " + this.settings.name + " · " + formatNumber.format(this.notes.length) + " нот";
+    item("ready-title").textContent = t(paused ? "Пауза" : "Уровень готов");
+    item("ready-detail").textContent = this.settings.stars + " · " + t(this.settings.name) + " · " + formatNumber(this.notes.length) + t(" нот", " notes");
+    if (this.track.reference && !paused) {
+      item("ready-title").textContent = t(this.track.reference.provider);
+      item("ready-detail").textContent = this.settings.stars + " · " + t(this.settings.name) + t(" · Ноты по заданному темпу", " · Tempo-based chart");
+    }
+    item("tempo-controls").hidden = paused;
     item("ready-hint").hidden = paused || !this.slideCount;
     item("resume-hint").hidden = !paused || !this.slide;
-    item("start-button").querySelector("span").textContent = paused ? "Продолжить" : "Начать игру";
-    const best = paused ? null : readBest(this.track);
+    item("start-button").querySelector("span").textContent = t(paused ? "Продолжить" : "Начать игру");
+    const best = paused || !this.track.songId ? null : readBest(this.track);
     const record = item("ready-record");
     record.hidden = !best;
-    record.textContent = best ? "Твой рекорд " + formatNumber.format(best.score) : "";
+    record.textContent = best ? t("Твой рекорд ", "Personal best ") + formatNumber(best.score) : "";
     if (focus) item("start-button").focus({ preventScroll: true });
   }
 
@@ -185,6 +230,12 @@ export class RhythmGame {
   async start() {
     const previous = this.phase;
     if (!["ready", "paused", "finished"].includes(previous)) return;
+    if (this.track.reference && !this.stream?.player) {
+      if (!item("start-button").disabled) await this.connectStream();
+      return;
+    }
+    const controller = new AbortController();
+    this.pendingStart = { controller, previous };
     this.phase = "starting";
     const track = this.track;
     item("start-button").disabled = true;
@@ -194,39 +245,65 @@ export class RhythmGame {
       const ctx = this.context || this.makeContext();
       const audioReady = ctx.resume();
       this.onStart?.();
-      await audioReady;
-      if (this.phase !== "starting" || track !== this.track) return;
-      if (previous !== "paused") this.reset();
-      const delay = previous === "paused" ? 2 : 3;
-      this.sourceStart = ctx.currentTime + delay;
-      this.source = ctx.createBufferSource();
-      this.source.buffer = track.buffer;
-      this.source.connect(ctx.destination);
-      this.source.start(this.sourceStart, this.offset);
-      this.phase = "countdown";
+      const resuming = previous === "paused";
+      if (this.stream) {
+        const bpm = this.stream.tempo.valueAsNumber;
+        const phase = this.stream.phase;
+        item("tempo-controls").hidden = true;
+        item("ready-screen").hidden = false;
+        item("results-screen").hidden = true;
+        item("ready-detail").textContent = t("Запускаем трек… Если нужно, нажми ▶ в плеере.");
+        const [clock] = await Promise.all([this.stream.play(resuming ? this.offset : 0, resuming, controller.signal), audioReady]);
+        if (controller.signal.aborted) return;
+        if (!resuming) {
+          Object.assign(track, tempoChart(track.reference, track.difficulty, clock.duration, bpm, phase));
+          this.field.setTrack(track);
+          this.slideCount = track.notes.filter(note => note.path).length;
+          this.reset();
+        }
+        this.lastStreamTime = clock.time;
+        this.lastStreamFrame = performance.now();
+        this.phase = "playing";
+        item("tempo-controls").hidden = true;
+        item("combo").hidden = !this.combo;
+      } else {
+        await audioReady;
+        if (controller.signal.aborted) return;
+        if (!resuming) this.reset();
+        this.sourceStart = ctx.currentTime + (resuming ? 2 : 3);
+        this.source = ctx.createBufferSource();
+        this.source.buffer = track.buffer;
+        this.source.connect(ctx.destination);
+        this.source.start(this.sourceStart, this.offset);
+        this.phase = "countdown";
+      }
       item("stage-overlay").hidden = true;
       item("pause-button").disabled = false;
-      item("countdown").hidden = false;
+      item("countdown").hidden = Boolean(this.stream);
       item("pause-button").focus({ preventScroll: true });
       if (document.hidden) this.pause(false);
       else this.tick();
-    } catch {
-      if (this.phase === "starting" && track === this.track) {
+    } catch (cause) {
+      if (!controller.signal.aborted) {
         this.stopAudio();
         this.showReady(previous === "paused", false);
         const error = item("play-error");
-        error.textContent = "Звук не запустился. Нажми кнопку ещё раз или открой игру в браузере.";
+        error.textContent = t(this.stream && cause.message ? cause.message : "Звук не запустился. Нажми кнопку ещё раз или открой игру в браузере.");
         error.hidden = false;
       }
     } finally {
-      item("start-button").disabled = false;
-      item("replay-button").disabled = false;
+      if (!controller.signal.aborted) {
+        this.pendingStart = null;
+        item("start-button").disabled = false;
+        item("replay-button").disabled = false;
+      }
     }
   }
 
   stopAudio() {
     if (this.animation) cancelAnimationFrame(this.animation);
     this.animation = 0;
+    this.stream?.player?.pause();
     if (!this.source) return;
     try { this.source.stop(); } catch { /* The buffer may already have ended. */ }
     this.source.disconnect();
@@ -234,12 +311,26 @@ export class RhythmGame {
   }
 
   playedTime() {
+    if (this.stream) return this.stream.player.read().time ?? this.lastStreamTime;
     return this.offset + audibleTime(this.context) - this.sourceStart;
   }
 
-  pause(focus = true) {
-    if (!["countdown", "playing"].includes(this.phase)) return;
-    const time = this.playedTime();
+  pause(focus = true, time) {
+    if (this.phase === "starting") {
+      const { controller, previous } = this.pendingStart;
+      controller.abort();
+      this.pendingStart = null;
+      this.stopAudio();
+      this.showReady(previous === "paused", focus);
+      item("start-button").disabled = false;
+      item("replay-button").disabled = false;
+      return;
+    }
+    if (!["countdown", "playing"].includes(this.phase)) {
+      this.stream?.player?.pause();
+      return;
+    }
+    time ??= this.playedTime();
     if (time >= this.track.duration + Math.max(0, this.timingOffset)) {
       this.finish();
       return;
@@ -260,6 +351,23 @@ export class RhythmGame {
 
   tick() {
     if (!["countdown", "playing"].includes(this.phase)) return;
+    if (this.stream) {
+      const clock = this.stream.player.read();
+      const now = performance.now();
+      const elapsed = (now - this.lastStreamFrame) / 1000;
+      this.lastStreamFrame = now;
+      if (clock.state === "ended") { this.finish(); return; }
+      if (clock.state === "paused" || clock.state === "error" ||
+          clock.time < this.lastStreamTime - .6 || clock.time - this.lastStreamTime > elapsed + 1.2) {
+        this.pause(false, this.lastStreamTime);
+        return;
+      }
+      if (clock.state === "buffering") {
+        this.animation = requestAnimationFrame(this.tick);
+        return;
+      }
+      this.lastStreamTime = clock.time;
+    }
     const time = this.playedTime();
     if (time < this.offset && this.phase === "countdown") {
       const nextText = String(Math.max(1, Math.min(3, Math.ceil(this.offset - time))));
@@ -324,7 +432,7 @@ export class RhythmGame {
       if (difference < -feedbackWindow) break;
       if (note.judged || note === this.slide?.note) continue;
       if (note.lane !== lane && Math.abs(difference) <= hitWindow) otherLane = true;
-      if (note.lane === lane && Math.abs(difference) <= Math.abs(delta)) {
+      if (note.lane === lane && (!closest || Math.abs(difference) < Math.abs(delta)) && Math.abs(difference) <= feedbackWindow) {
         closest = note;
         delta = difference;
       }
@@ -340,7 +448,7 @@ export class RhythmGame {
       return;
     }
 
-    const perfect = Math.abs(delta) <= hitWindow * .46;
+    const perfect = Math.abs(delta) <= this.settings.perfectWindow;
     if (closest.path) {
       if (this.slide) return;
       if (!canHold) {
@@ -375,7 +483,7 @@ export class RhythmGame {
     time = slide.time = Math.max(time, slide.time);
     const path = slide.note.path;
     const end = path.at(-1);
-    const grace = Math.max(.15, this.settings.window);
+    const grace = this.settings.slideGrace;
     if (slide.offPathSince !== null && time > Math.max(slide.offPathSince + grace, slide.resumeUntil)) {
       this.failSlide(time, this.slideFailure("Удержание ушло с маршрута"));
       return;
@@ -513,11 +621,12 @@ export class RhythmGame {
 
   timingText(delta, withDirection = true) {
     const milliseconds = Math.round(Math.abs(delta) * 1000);
-    const side = delta < 0 ? "Рано" : "Поздно";
-    return (withDirection && milliseconds ? side + " · " : "") + milliseconds + " мс";
+    const side = t(delta < 0 ? "Рано" : "Поздно");
+    return (withDirection && milliseconds ? side + " · " : "") + milliseconds + t(" мс", " ms");
   }
 
   clearFeedback() {
+    this.stage.style.removeProperty("--judgement-color");
     this.feedbackAnimation?.cancel();
     this.feedbackAnimation = null;
     item("judgement").textContent = "";
@@ -526,15 +635,16 @@ export class RhythmGame {
 
   feedback(label, color, detail = "") {
     const judgement = item("judgement");
-    judgement.textContent = label;
+    judgement.textContent = t(label);
     judgement.style.color = color;
-    item("judgement-detail").textContent = detail;
+    this.stage.style.setProperty("--judgement-color", color);
+    item("judgement-detail").textContent = t(detail);
     const message = item("judgement-message");
     const moving = !this.field.motion?.matches;
     this.feedbackAnimation?.cancel();
     this.feedbackAnimation = message.animate?.([
-      { opacity: 0, transform: moving ? "translateY(5px) scale(.99)" : "none" },
-      { opacity: 1, transform: "none", offset: .14 },
+      { opacity: .85, transform: moving ? "scale(1.22)" : "none" },
+      { opacity: 1, transform: "none", offset: .22 },
       { opacity: 1, transform: "none", offset: .62 },
       { opacity: 0, transform: moving ? "translateY(-4px)" : "none" }
     ], { duration: feedbackDuration, fill: "both" });
@@ -547,7 +657,7 @@ export class RhythmGame {
   }
 
   updateScores() {
-    item("score").textContent = formatNumber.format(this.score);
+    item("score").textContent = formatNumber(this.score);
     this.updateCombo();
     item("accuracy").textContent = this.accuracy();
   }
@@ -556,8 +666,8 @@ export class RhythmGame {
     const previous = this.displayedCombo ?? 0;
     if (this.combo === previous) return;
     const label = item("combo");
-    label.textContent = formatNumber.format(this.combo);
-    label.setAttribute("aria-label", "Комбо " + this.combo);
+    label.textContent = formatNumber(this.combo);
+    label.setAttribute("aria-label", t("Комбо ", "Combo ") + this.combo);
     label.hidden = !this.combo;
     this.displayedCombo = this.combo;
 
@@ -590,7 +700,7 @@ export class RhythmGame {
   }
 
   updateProgress(time) {
-    const progress = clamp(time / this.track.duration, 0, 1);
+    const progress = clamp(time / (this.track.duration || 1), 0, 1);
     const value = Math.floor(progress * 100);
     const bar = item("game-progress");
     bar.firstElementChild.style.transform = "scaleX(" + progress + ")";
@@ -603,6 +713,7 @@ export class RhythmGame {
   finish() {
     this.stopAudio();
     this.phase = "finished";
+    item("tempo-controls").hidden = false;
     item("combo").hidden = true;
     this.clearInputs();
     this.markMisses(this.track.duration, true);
@@ -613,11 +724,11 @@ export class RhythmGame {
     item("ready-screen").hidden = true;
     item("stage-overlay").hidden = false;
     item("results-screen").hidden = false;
-    item("result-score").textContent = formatNumber.format(this.score);
+    item("result-score").textContent = formatNumber(this.score);
     item("result-accuracy").textContent = this.accuracy();
-    item("result-combo").textContent = formatNumber.format(this.maxCombo);
+    item("result-combo").textContent = formatNumber(this.maxCombo);
     this.showRecord();
-    item("result-hits").textContent = "Попадания — " + formatNumber.format(this.perfect + this.good) + " из " + formatNumber.format(this.notes.length);
+    item("result-hits").textContent = t("Попадания — ", "Hits — ") + formatNumber(this.perfect + this.good) + t(" из ", " of ") + formatNumber(this.notes.length);
     this.draw(this.track.duration);
     item("replay-button").focus({ preventScroll: true });
   }
@@ -627,13 +738,13 @@ export class RhythmGame {
     const summary = item("result-record");
     summary.hidden = !best && !this.score;
     summary.classList.toggle("record-improved", improved);
-    if (!saved && this.score) summary.textContent = "Браузер не сохранил рекорд.";
-    else if (improved) summary.textContent = "Новый личный рекорд · " + formatNumber.format(best.score);
+    if (!saved && this.score) summary.textContent = t("Браузер не сохранил рекорд.");
+    else if (improved) summary.textContent = t("Новый личный рекорд · ", "New personal best · ") + formatNumber(best.score);
     else if (best) {
-      const gap = formatNumber.format(Math.max(0, best.score - this.score));
+      const gap = formatNumber(Math.max(0, best.score - this.score));
       summary.textContent = this.score === best.score
-        ? "Повторён личный рекорд · " + formatNumber.format(best.score)
-        : "Рекорд " + formatNumber.format(best.score) + " · До него " + gap;
+        ? t("Повторён личный рекорд · ", "Matched personal best · ") + formatNumber(best.score)
+        : t("Рекорд ", "Personal best ") + formatNumber(best.score) + t(" · До него ", " · Points to beat it: ") + gap;
     }
   }
 
@@ -645,6 +756,6 @@ export class RhythmGame {
   }
 
   draw(time) {
-    this.field.draw(this.notes, this.missCursor, time - this.timingOffset, this.settings.approach, this.slide, this.phase === "playing");
+    this.field.draw(this.notes, this.missCursor, time - this.timingOffset, this.settings, this.slide, this.phase === "playing");
   }
 }

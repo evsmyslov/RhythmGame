@@ -1,0 +1,7 @@
+<resources>
+    <string name="cannot_open_link">Некуда открыть ссылку</string>
+    <string name="cannot_open_files">Не удалось открыть выбор файлов</string>
+    <string name="launch_failed">Не удалось запустить Pulsewake</string>
+    <string name="update_webview">Обнови Android System WebView в Google Play и попробуй снова.</string>
+    <string name="retry">Попробовать снова</string>
+</resources>

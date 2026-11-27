@@ -1,4 +1,4 @@
-import { texture } from "./lane-sprites.js?v=14";
+import { texture } from "./lane-sprites.js?v=15";
 
 const tau = Math.PI * 2;
 const unit = value => Math.max(0, Math.min(1, value));
@@ -136,8 +136,8 @@ export class StageEffects {
   draw(time, now, load) {
     this.wave = 0;
     this.pulse = 0;
-    this.setShade(load * .58);
     if (!this.width || this.motion.matches || time < 0) {
+      this.setShade(load * .25);
       this.setBloom(0);
       this.setLight(.22);
       return;
@@ -155,6 +155,8 @@ export class StageEffects {
     const celebrating = streakAge < 1.3;
     const streak = celebrating
       ? smooth(streakAge / .13) * (1 - smooth((streakAge - .16) / (.28 * this.streakTier))) * this.streakPower : 0;
+    const streakCut = celebrating ? (1 - smooth(streakAge / (.12 + this.streakTier * .045))) * .50 : 0;
+    this.setShade(Math.min(.70, load * .35 + opening * .27 + streakCut + beat * .07));
     const calm = 1 - load * .75;
     const energy = Math.max(peak * .60 * calm, streak);
     const wings = this.streakTier === 4 ? streak * .58 : 0;
@@ -280,21 +282,9 @@ export class StageEffects {
     const y = this.horizon + (this.height - this.horizon) * progress ** .72;
     const span = field.spanAt(y) * .5;
     const width = 11 + progress * 34;
-    const start = Math.max(this.horizon, y - width * 1.9);
-    const end = Math.min(this.height, y + width * 1.5);
     ctx.save();
     ctx.globalAlpha = 1 - progress;
     ctx.drawImage(this.roadGlow, this.width / 2 - span, y - width, span * 2, width * 2);
-    ctx.globalAlpha = (1 - progress) * .82;
-    ctx.lineWidth = 2.5 + progress * 4;
-    ctx.lineCap = "round";
-    for (const [lane, color] of [[-.5, this.colors[0]], [3.5, this.colors[2]]]) {
-      ctx.beginPath();
-      ctx.moveTo(field.x(lane, start), start);
-      ctx.lineTo(field.x(lane, end), end);
-      ctx.strokeStyle = color;
-      ctx.stroke();
-    }
     ctx.restore();
   }
 }

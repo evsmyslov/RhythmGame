@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Pulsewake — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
   <title>Pulsewake — Твой ритм</title>
-  <link rel="manifest" href="manifest.webmanifest?v=14">
-  <link rel="icon" href="assets/icon-192.png?v=14">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=14">
-  <link rel="stylesheet" href="styles.css?v=14">
-  <script type="module" src="app.js?v=14"></script>
+  <link rel="manifest" href="manifest.webmanifest?v=15">
+  <link rel="icon" href="assets/icon-192.png?v=15">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=15">
+  <link rel="stylesheet" href="styles.css?v=15">
+  <script type="module" src="app.js?v=15"></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -40,9 +40,10 @@
   <header class="site-header">
     <div class="header-inner">
       <a class="brand" href="./" aria-label="Pulsewake, главная">
-        <img class="brand-icon" src="assets/icon-192.png?v=14" width="38" height="38" alt=""><span>Pulsewake<span class="brand-period">.</span></span>
+        <img class="brand-icon" src="assets/icon-192.png?v=15" width="38" height="38" alt=""><span>Pulsewake<span class="brand-period">.</span></span>
       </a>
       <nav class="header-actions" aria-label="Управление и справка">
+        <button type="button" class="quiet-button" id="language-button">EN</button>
         <button class="quiet-button lobby-music-button" id="lobby-music-button" aria-label="Музыка в лобби" aria-pressed="false" type="button"><svg><use href="#i-volume-off"/></svg><span>Музыка</span></button>
         <button class="quiet-button install-button" id="install-button" type="button" hidden><svg><use href="#i-download"/></svg><span>Установить</span></button>
         <button class="quiet-button timing-button" id="timing-button" aria-label="Калибровка" title="Калибровка звука" type="button"><svg><use href="#i-timing"/></svg><span>Калибровка</span></button>
@@ -54,22 +55,43 @@
   <audio id="lobby-music" src="assets/night-circuit.mp3" preload="none" loop aria-hidden="true"></audio>
 
   <main class="home page-width" id="home">
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <h1 id="hero-title">Твоя музыка.<br><span>Твой ритм.</span></h1>
-        <p>Сыграй любимую песню на четырёх дорожках.</p>
-        <button class="primary-button demo-button" id="demo-button" type="button"><svg><use href="#i-play"/></svg>Попробовать демо</button>
+    <nav class="library-nav" aria-label="Меню" data-en-aria-label="Menu">
+      <button type="button" data-tab="maps" aria-pressed="true" data-en="Maps">Карты</button>
+      <button type="button" data-tab="custom" aria-pressed="false" data-en="Import track">Свой трек</button>
+      <button type="button" data-tab="scores" aria-pressed="false" data-en="Leaderboards">Рекорды</button>
+    </nav>
+    <section id="maps-pane" class="collection">
+      <div class="sleeve" id="sleeve">
+        <img id="map-art" alt="" width="512" height="512">
+        <div class="sleeve-caption">
+          <p id="map-info"></p>
+          <h1 id="map-title">Glass Ferry</h1>
+          <button class="primary-button" id="play-map" type="button"><svg><use href="#i-play"/></svg><span data-en="Play">Играть</span></button>
+        </div>
       </div>
+      <div class="tracklist"><h2 data-en="Select a map">Выбор карты</h2><div id="map-list"></div></div>
+      <p id="map-error" class="field-error" role="status" hidden></p>
+    </section>
+    <section id="scores-pane" class="score-panel" hidden>
+      <div class="board-heading"><h2 data-en="Leaderboards">Рекорды</h2>
+        <select id="score-map" aria-label="Карта" data-en-aria-label="Map"></select></div>
+      <p id="board-status" role="status"></p><ol id="board-rows"></ol>
+      <form id="submit-score">
+        <label for="player-name" data-en="Player name">Имя игрока</label>
+        <input id="player-name" required maxlength="22" autocomplete="nickname" placeholder="Твой ник" data-en-placeholder="Your nickname">
+        <button type="submit" id="send-score" class="primary-button" data-en="Publish my best">Опубликовать мой рекорд</button>
+      </form>
+      <p id="board-detail" role="status"></p>
     </section>
 
-    <form class="card setup" id="setup" novalidate>
-      <div class="section-heading"><h2>Своя песня</h2></div>
+    <form class="card setup" id="setup" novalidate hidden>
+      <div class="section-heading import-heading"><h2>Своя песня</h2><button id="demo-button" type="button" class="text-button" data-en="Play demo">Демо</button></div>
 
       <label class="field-label" for="track-url">Ссылка на трек</label>
       <div class="track-controls">
         <div class="url-field">
           <svg class="field-icon"><use href="#i-link"/></svg>
-          <input id="track-url" type="url" placeholder="Аудио, YouTube или Spotify" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="source-error streaming-hint">
+          <input id="track-url" type="url" placeholder="YouTube, Spotify, SoundCloud или аудио" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="source-error streaming-hint">
           <button class="paste-button" id="paste-button" type="button" aria-label="Вставить ссылку" title="Вставить ссылку"><svg><use href="#i-clip"/></svg><span>Вставить</span></button>
         </div>
         <div class="source-row">
@@ -80,7 +102,7 @@
       </div>
       <div class="streaming-source" id="streaming-source" hidden>
         <a id="streaming-link" target="_blank" rel="noopener noreferrer"><svg><use href="#i-link"/></svg><span></span></a>
-        <p id="streaming-hint">Выбери аудио или видео с этим треком, чтобы сгенерировать ноты.</p>
+        <p id="streaming-hint">Трек откроется в плеере. Темп можно задать перед игрой.</p>
       </div>
       <p class="field-error" id="source-error" role="alert" hidden></p>
 
@@ -118,6 +140,9 @@
 
   <main class="game" id="game" hidden>
     <div class="game-layout">
+      <div class="stage-light" aria-hidden="true"></div>
+      <div class="stage-bloom" aria-hidden="true"></div>
+      <div class="stage-shade" aria-hidden="true"></div>
       <div class="game-toolbar">
         <button class="quiet-button" id="back-button" aria-label="К песням" title="К песням" type="button"><svg><use href="#i-close"/></svg></button>
         <div class="scorebar">
@@ -131,10 +156,16 @@
         <div class="progress" role="progressbar" id="game-progress" aria-label="Ход песни" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
       </div>
       <p class="fullscreen-notice" id="fullscreen-notice" role="status" hidden>Браузер не включил полноэкранный режим.</p>
+      <aside id="player-panel" hidden>
+        <div id="player-host"></div>
+        <div id="tempo-controls">
+          <label for="stream-tempo">Темп, BPM</label>
+          <input id="stream-tempo" type="number" min="40" max="240" step="0.1" required value="120" inputmode="decimal">
+          <button class="quiet-button" id="tap-tempo" type="button">В такт</button>
+          <p id="tempo-hint" role="status"></p>
+        </div>
+      </aside>
       <div class="stage" id="stage">
-        <div class="stage-light" aria-hidden="true"></div>
-        <div class="stage-bloom" aria-hidden="true"></div>
-        <div class="stage-shade" aria-hidden="true"></div>
         <canvas id="chart-canvas" aria-hidden="true"></canvas>
         <div class="lane-controls" id="lane-controls" aria-label="Игровые дорожки">
           <button class="lane-control" type="button" data-lane="0" aria-label="Дорожка 1, клавиша D"><span>D</span></button>
@@ -172,6 +203,7 @@
             <p id="result-hits"></p>
             <p class="record-line" id="result-record" hidden></p>
             <button class="primary-button" id="replay-button" type="button"><svg><use href="#i-replay"/></svg>Сыграть снова</button>
+            <button class="text-button" id="result-board" type="button" hidden data-en="Map leaderboard">Рейтинг карты</button>
             <button class="text-button" id="result-back" type="button">Выбрать песню</button>
           </div>
         </div>
@@ -182,9 +214,9 @@
   <dialog class="info-dialog" id="help-dialog" aria-labelledby="help-title">
     <div class="dialog-heading"><h2 id="help-title">Как играть</h2><form method="dialog"><button class="icon-button" aria-label="Закрыть"><svg><use href="#i-close"/></svg></button></form></div>
     <ol>
-      <li>Вставь прямую ссылку на аудио или выбери аудио либо видео с телефона. Ссылку YouTube или Spotify можно добавить вместе с файлом.</li>
+      <li>Вставь ссылку на трек из YouTube, Spotify или SoundCloud. Для плеера укажи темп или отбей его по музыке. Для прямых ссылок и файлов игра сама найдёт удары. Длину доступного фрагмента определяет сервис.</li>
       <li>Выбери от одной до пяти звёзд. На сложных уровнях появляются быстрые переборы, двойные ноты и слайды с несколькими переходами.</li>
-      <li>Нажимай, когда нота совпадает с мишенью. Удерживай начало слайда и веди палец по ленте до конца. Стрелки показывают, куда перейти. На клавиатуре используй D, F, J и K.</li>
+      <li>Нажимай, когда нота подходит к мишени. Игра засчитает и чуть более раннее или позднее нажатие. Удерживай начало слайда и веди палец по ленте до конца. Стрелки показывают, куда перейти. На клавиатуре используй D, F, J и K.</li>
     </ol>
     <p>Начни с демо. Если звук и ноты расходятся, открой калибровку в главном меню.</p>
     <form method="dialog"><button class="primary-button">Понятно</button></form>

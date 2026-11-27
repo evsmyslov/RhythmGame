@@ -1,72 +1,24 @@
+import { linkedMedia } from "./track-links.js?v=15";
+
 const maxBytes = 60 * 1024 * 1024;
 const maxVideoBytes = 180 * 1024 * 1024;
-const maxDuration = 10 * 60;
+export const maxDuration = 10 * 60;
 const demoURL = new URL("./assets/neon-pulse.mp3", import.meta.url);
 
 export const difficulties = {
-  1: { name: "Легко", stars: "★", approach: 1.95, window: .18 },
-  2: { name: "Средне", stars: "★★", approach: 1.55, window: .145 },
-  3: { name: "Сложно", stars: "★★★", approach: 1.24, window: .118 },
-  4: { name: "Эксперт", stars: "★★★★", approach: 1.12, window: .101 },
-  5: { name: "Мастер", stars: "★★★★★", approach: 1.02, window: .09 }
+  1: { name: "Легко", stars: "★", approach: 1.95, window: .25, perfectWindow: .083, slideGrace: .18 },
+  2: { name: "Средне", stars: "★★", approach: 1.55, window: .225, perfectWindow: .067, slideGrace: .15 },
+  3: { name: "Сложно", stars: "★★★", approach: 1.24, window: .20, perfectWindow: .054, slideGrace: .15 },
+  4: { name: "Эксперт", stars: "★★★★", approach: 1.12, window: .18, perfectWindow: .046, slideGrace: .15 },
+  5: { name: "Мастер", stars: "★★★★★", approach: 1.02, window: .165, perfectWindow: .041, slideGrace: .15 }
 };
-
-export function streamingReference(value) {
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "https:" || url.username || url.password) return null;
-
-  const host = url.hostname.replace(/^www\./, "");
-  const parts = url.pathname.split("/").filter(Boolean);
-  const youtubeHosts = ["youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com"];
-  if (host === "youtu.be" || youtubeHosts.includes(host)) {
-    const id = host === "youtu.be" ? parts[0]
-      : parts[0] === "watch" ? url.searchParams.get("v")
-      : ["shorts", "live", "embed"].includes(parts[0]) ? parts[1] : null;
-    if (id && /^[A-Za-z0-9_-]{11}$/.test(id)) {
-      return { provider: "YouTube", url: "https://www.youtube.com/watch?v=" + id };
-    }
-  }
-  if (host === "open.spotify.com") {
-    if (parts[0]?.startsWith("intl-")) parts.shift();
-    if (parts[0] === "track" && /^[A-Za-z0-9]{22}$/.test(parts[1])) {
-      return { provider: "Spotify", url: "https://open.spotify.com/track/" + parts[1] };
-    }
-  }
-  if (host === "spotify.link" && parts.length === 1 && /^[A-Za-z0-9_-]{4,64}$/.test(parts[0])) {
-    return { provider: "Spotify", url: "https://spotify.link/" + parts[0] };
-  }
-  return null;
-}
-
-export function parseTrackLink(value) {
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error("Вставь полную ссылку на аудио, начиная с https://.");
-  }
-  if (url.protocol !== "https:" || url.username || url.password) {
-    throw new Error("Вставь прямую ссылку на аудио, начинающуюся с https://.");
-  }
-  if (/(^|\.)(youtube\.com|youtube-nocookie\.com|youtu\.be|spotify\.com|spotify\.link|music\.apple\.com|music\.yandex\.ru|soundcloud\.com)$/i.test(url.hostname)) {
-    throw new Error("Нужна ссылка на отдельный трек или видео. Используй прямую ссылку на аудио или загрузи файл с телефона.");
-  }
-  if (/(^|\.)dropbox\.com$/i.test(url.hostname)) {
-    url.searchParams.delete("dl");
-    url.searchParams.set("raw", "1");
-  }
-  return url;
-}
 
 export async function prepareTrack({ file, url, demo, difficulty }, signal, update) {
   const video = file && (file.type.startsWith("video/") || (!file.type.startsWith("audio/") && /\.(mp4|mov|m4v|webm)$/i.test(file.name)));
   update(file ? "Читаем файл…" : "Загружаем аудио…");
-  const bytes = file ? await readFile(file, video) : await download(demo ? demoURL : url, signal);
+  const media = file ? await readFile(file, video) : await download(demo ? demoURL : url, signal);
+  if (media.reference) return { ...media, difficulty };
+  const bytes = media;
   signal.throwIfAborted();
   const paletteId = await fingerprint(bytes);
   signal.throwIfAborted();
@@ -128,36 +80,31 @@ async function download(url, signal) {
   const timeout = setTimeout(() => request.abort(new DOMException("Загрузка заняла слишком много времени. Попробуй файл с телефона.", "TimeoutError")), 45000);
   try {
     signal.throwIfAborted();
-    const response = await fetch(url, { signal: request.signal, credentials: "same-origin" });
+    let address = url;
+    let response;
+    for (let page = 0; page < 2; page++) {
+      try {
+        response = await fetch(address, { signal: request.signal, credentials: "same-origin" });
+      } catch (error) {
+        if (error instanceof TypeError && address.origin !== location.origin && !request.signal.aborted) {
+          // A media element can play many cross-origin files whose bytes the browser cannot read.
+          return { reference: { provider: "Аудио", url: address.href } };
+        }
+        throw error;
+      }
+      if (!response.ok || !response.headers.get("Content-Type")?.includes("text/html")) break;
+      if (page === 1) throw new Error("На странице не нашлось доступной звуковой дорожки.");
+      const html = await readBytes(response, 2 * 1024 * 1024, "Страница с треком слишком большая.");
+      address = linkedMedia(new TextDecoder().decode(html), response.url);
+      if (!address) throw new Error("На странице не нашлось аудио. Вставь ссылку на отдельный трек или выбери файл.");
+    }
     if (!response.ok) throw new Error("Аудио по этой ссылке недоступно. Проверь ссылку или выбери файл.");
     const type = response.headers.get("Content-Type")?.toLowerCase();
     if (type?.includes("text/html") || type?.includes("application/json")) {
       throw new Error("Ссылка ведёт на веб-страницу. Вставь прямую ссылку на аудио или выбери файл.");
     }
-    if (Number(response.headers.get("Content-Length")) > maxBytes) {
-      throw new Error("Выбери аудиофайл размером до 60 МБ.");
-    }
-    if (!response.body) {
-      const bytes = await response.arrayBuffer();
-      if (bytes.byteLength > maxBytes) throw new Error("Выбери аудиофайл размером до 60 МБ.");
-      return bytes;
-    }
-
-    const reader = response.body.getReader();
-    const chunks = [];
-    let total = 0;
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        total += value.byteLength;
-        if (total > maxBytes) throw new Error("Выбери аудиофайл размером до 60 МБ.");
-        chunks.push(value);
-      }
-    } finally {
-      await reader.cancel().catch(() => {});
-    }
-    return new Blob(chunks).arrayBuffer();
+    const limit = type?.startsWith("video/") ? maxVideoBytes : maxBytes;
+    return await readBytes(response, limit, limit === maxVideoBytes ? "Выбери видео размером до 180 МБ." : "Выбери аудиофайл размером до 60 МБ.");
   } catch (error) {
     if (request.signal.aborted) throw request.signal.reason;
     if (error instanceof TypeError) {
@@ -170,6 +117,33 @@ async function download(url, signal) {
   }
 }
 
+async function readBytes(response, limit, tooLarge) {
+  if (Number(response.headers.get("Content-Length")) > limit) {
+    throw new Error(tooLarge);
+  }
+  if (!response.body) {
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength > limit) throw new Error(tooLarge);
+    return bytes;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) throw new Error(tooLarge);
+      chunks.push(value);
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  return new Blob(chunks).arrayBuffer();
+}
+
 function scanAudio(buffer, difficulty, signal) {
   const first = buffer.getChannelData(0);
   const second = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : first;
@@ -179,7 +153,7 @@ function scanAudio(buffer, difficulty, signal) {
   }
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./chart-worker.js?v=14", import.meta.url));
+    const worker = new Worker(new URL("./chart-worker.js?v=15", import.meta.url));
     const cancel = () => finish(reject, signal.reason);
     function finish(settle, data) {
       worker.terminate();
