@@ -1,11 +1,20 @@
-import { catalog } from "./catalog.js?v=16";
-import { difficulties } from "./audio.js?v=16";
-import { t, formatNumber } from "./i18n.js?v=16";
-import { readBest } from "./records.js?v=16";
+import { catalog } from "./catalog.js?v=17";
+import { difficulties } from "./audio.js?v=17";
+import { t, formatNumber } from "./i18n.js?v=17";
+import { readBest } from "./records.js?v=17";
 
 const item = id => document.getElementById(id);
 const api = "https://pulsewake-scores.royalhero8192.chatgpt.site/v1/maps/";
 const mapKey = map => ({ songId: map.id + "-v2", difficulty: map.difficulty });
+
+export async function loadMap(map, signal) {
+  const response = await fetch(map.url, { signal });
+  if (!response.ok) throw new Error("map unavailable");
+  const Decoder = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const buffer = await new Decoder(1, 1, 32000).decodeAudioData(await response.arrayBuffer());
+  signal.throwIfAborted();
+  return { ...map, ...mapKey(map), paletteId: map.id, buffer, duration: buffer.duration };
+}
 
 function playerKey() {
   let token = localStorage.getItem("pulsewake-ranking-key");
@@ -130,6 +139,8 @@ export function bindLibrary(play, exitGame) {
     item("maps-pane").hidden = tab !== "maps";
     item("setup").hidden = tab !== "custom";
     item("scores-pane").hidden = tab !== "scores";
+    item("played-pane").hidden = tab !== "history";
+    document.dispatchEvent(new Event("pulsewake-menu"));
     if (tab === "scores") leaderboard();
     else { request?.abort(); request = null; }
   }
@@ -143,7 +154,7 @@ export function bindLibrary(play, exitGame) {
     sending = true;
     try { await leaderboard(true); } finally { sending = false; }
   };
-  item("result-board").onclick = () => { exitGame(); select.value = selected.id; showTab("scores"); };
+  item("result-board").onclick = () => { exitGame(); select.value = item("result-board").dataset.map; showTab("scores"); };
   item("play-map").onclick = async () => {
     const map = selected;
     const controller = opening = new AbortController();
@@ -151,11 +162,8 @@ export function bindLibrary(play, exitGame) {
     button.disabled = true;
     item("map-error").hidden = true;
     try {
-      const response = await fetch(map.url, { signal: controller.signal });
-      if (!response.ok) throw new Error();
-      const Decoder = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-      const buffer = await new Decoder(1, 1, 32000).decodeAudioData(await response.arrayBuffer());
-      if (!controller.signal.aborted) play({ ...map, ...mapKey(map), paletteId: map.id, buffer, duration: buffer.duration });
+      const track = await loadMap(map, controller.signal);
+      if (!controller.signal.aborted) play(track);
     } catch {
       if (!controller.signal.aborted) {
         item("map-error").textContent = t("Не удалось открыть карту. Попробуй ещё раз.", "Could not open the map. Try again.");

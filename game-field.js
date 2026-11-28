@@ -1,7 +1,7 @@
-import { StageEffects } from "./stage-effects.js?v=16";
-import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=16";
+import { StageEffects } from "./stage-effects.js?v=17";
+import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=17";
 
-import { trackPalette } from "./palette.js?v=16";
+import { trackPalette } from "./palette.js?v=17";
 
 const laneCount = 4;
 const tau = Math.PI * 2;

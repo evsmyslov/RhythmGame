@@ -1,14 +1,16 @@
-import { bindLibrary } from "./library.js?v=16";
-import { initLanguage, t } from "./i18n.js?v=16";
-import { decodeTrack, chartTrack } from "./audio.js?v=16";
-import { parseTrackLink, streamingReference } from "./track-links.js?v=16";
-import { RhythmGame } from "./game.js?v=16";
-import { LobbyMusic } from "./sound.js?v=16";
-import { bindCalibration } from "./timing.js?v=16";
+import { catalog } from "./catalog.js?v=17";
+import { bindPlayedTracks, readPlayedAudio } from "./played-tracks.js?v=17";
+import { bindLibrary, loadMap } from "./library.js?v=17";
+import { initLanguage, t } from "./i18n.js?v=17";
+import { decodeTrack, chartTrack } from "./audio.js?v=17";
+import { parseTrackLink, streamingReference } from "./track-links.js?v=17";
+import { RhythmGame } from "./game.js?v=17";
+import { LobbyMusic } from "./sound.js?v=17";
+import { bindCalibration } from "./timing.js?v=17";
 
-import { bindSettings } from "./settings.js?v=16";
-import { providerReference, resolveProvider } from "./provider-import.js?v=16";
-import { exportMp3 } from "./mp3-export.js?v=16";
+import { bindSettings } from "./settings.js?v=17";
+import { providerReference, resolveProvider } from "./provider-import.js?v=17";
+import { exportMp3 } from "./mp3-export.js?v=17";
 
 initLanguage();
 
@@ -27,7 +29,7 @@ const gameScreen = item("game");
 const nativeApp = location.hostname === "appassets.androidplatform.net";
 document.documentElement.classList.toggle("native-app", nativeApp);
 let androidPaused = false;
-const game = new RhythmGame(enterLandscape);
+const game = new RhythmGame(enterLandscape, bindPlayedTracks(replaySaved));
 const lobbyMusic = new LobbyMusic(item("lobby-music"), item("lobby-music-button"));
 bindSettings(game, item("lobby-music"));
 const fullscreenButton = item("fullscreen-button");
@@ -212,7 +214,7 @@ updateStreamingSource();
 
 function setBusy(busy) {
   const controls = [startGeneration, demoButton, item("paste-button"), item("clear-url"), item("menu-back"),
-    item("download-mp3"), item("play-provider"), trackURL, fileButton, removeFile, item("timing-button"), ...difficultyControl];
+    item("download-mp3"), item("play-provider"), ...form.querySelectorAll("[data-tab]"), trackURL, fileButton, removeFile, item("timing-button"), ...difficultyControl];
   controls.forEach(control => { control.disabled = busy; });
   item("generation-status").hidden = !busy;
 }
@@ -289,7 +291,7 @@ async function generate(demo, intent = "game", accepted = null) {
         return;
       }
       if (source.status === "embed-only") {
-        showGame({ reference: source.reference, difficulty });
+        showGame({ reference: source.reference, title: [source.artist, source.title].filter(Boolean).join(" — "), difficulty });
         return;
       }
       url = parseTrackLink(source.mediaUrl);
@@ -298,7 +300,7 @@ async function generate(demo, intent = "game", accepted = null) {
       if (!value) throw new Error("Вставь ссылку на трек или выбери файл.");
       url = parseTrackLink(value);
     }
-    const decoded = await decodeTrack({ file: demo ? null : file, url, demo }, signal, update);
+    const decoded = await decodeTrack({ file: demo ? null : file, url, demo, keepAudio: intent === "game" }, signal, update);
     signal.throwIfAborted();
     if (intent === "save") {
       if (!decoded.buffer) throw unavailable();
@@ -311,7 +313,13 @@ async function generate(demo, intent = "game", accepted = null) {
     } else {
       const track = await chartTrack(decoded, difficulty, signal, update);
       signal.throwIfAborted();
-      showGame({ ...track, title });
+      const pathName = url?.pathname.split("/").filter(Boolean).pop();
+      let fallback = file?.name || pathName || url?.hostname || "Pulsewake";
+      try { fallback = decodeURIComponent(fallback); } catch { /* Keep the supplied filename. */ }
+      const historyEntry = demo ? { kind: "demo", key: "demo", title: "Neon Pulse" }
+        : { kind: "audio", key: "audio:" + track.paletteId, title: title || fallback,
+            filename: file?.name || fallback, preview, provider: reference?.provider || "" };
+      showGame({ ...track, title: historyEntry.title, historyEntry });
     }
   } catch (error) {
     if (!signal.aborted && error.name !== "AbortError") setError(error.message || "Не удалось сгенерировать уровень.", !!value && !file);
@@ -323,7 +331,27 @@ async function generate(demo, intent = "game", accepted = null) {
   }
 }
 
+async function replaySaved(entry, signal, button) {
+  let track;
+  if (entry.kind === "map") {
+    track = await loadMap(catalog.find(map => map.id === entry.map), signal);
+  } else if (entry.kind === "stream") {
+    track = { reference: entry.reference, difficulty: entry.difficulty };
+  } else {
+    const blob = entry.kind === "demo" ? null : await readPlayedAudio(entry.key);
+    signal.throwIfAborted();
+    if (!blob && entry.kind !== "demo") throw new Error("missing library audio");
+    const file = blob && new File([blob], entry.filename || entry.title, { type: blob.type });
+    const decoded = await decodeTrack({ file, demo: entry.kind === "demo" }, signal, () => {});
+    track = await chartTrack(decoded, entry.difficulty, signal, () => {});
+  }
+  signal.throwIfAborted();
+  returnFocus = button;
+  showGame({ ...track, title: entry.title, historyEntry: entry });
+}
+
 function showGame(track) {
+  item("result-board").dataset.map = track.id || "";
   item("result-board").hidden = !track.id;
   lobbyMusic.setInLobby(false);
   history.pushState({ rhythmGame: true }, "", "#play");

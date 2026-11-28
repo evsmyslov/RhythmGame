@@ -8,14 +8,15 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Pulsewake — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
   <title>Pulsewake — Твой ритм</title>
-  <link rel="manifest" href="manifest.webmanifest?v=16">
-  <link rel="icon" href="assets/icon-192.png?v=16">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=16">
-  <link rel="stylesheet" href="styles.css?v=16">
-  <script type="module" src="app.js?v=16"></script>
+  <link rel="manifest" href="manifest.webmanifest?v=17">
+  <link rel="icon" href="assets/icon-192.png?v=17">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=17">
+  <link rel="stylesheet" href="styles.css?v=17">
+  <script type="module" src="app.js?v=17"></script>
 </head>
 <body data-menu="title">
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-library" viewBox="0 0 24 24"><path d="M3 4v16m4-16v16m4-16v16m3-15 5 14 3-1-5-14z"/></symbol>
     <symbol id="i-timing" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M9 3v6m6 0v6m-7 0v6" stroke-width="3"/></symbol>
     <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .4c0 1.7-2.5 1.9-2.5 3.6m0 3h.01"/></symbol>
     <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l11-2v13M9 9l11-2"/><ellipse cx="6" cy="18" rx="3" ry="2"/><ellipse cx="17" cy="16" rx="3" ry="2"/></symbol>
@@ -53,6 +54,7 @@
       <nav class="title-actions" aria-label="Меню" data-en-aria-label="Menu">
         <button class="play-title" type="button" data-tab="maps"><svg><use href="#i-play"/></svg><span data-en="Play">Играть</span></button>
         <button type="button" data-tab="custom"><svg><use href="#i-music"/></svg><span data-en="My music">Своя музыка</span></button>
+        <button type="button" data-tab="history"><svg><use href="#i-library"/></svg><span data-en="Library">Библиотека</span></button>
         <button type="button" data-tab="scores"><svg><use href="#i-star"/></svg><span data-en="Leaderboards">Рекорды</span></button>
       </nav>
     </section>
@@ -67,6 +69,11 @@
       </div>
       <p id="map-error" class="field-error" role="status" hidden></p>
     </section>
+    <section id="played-pane" class="score-panel history-panel" hidden>
+      <div class="board-heading"><h2 data-en="Your library">Библиотека игрока</h2>
+        <button type="button" class="text-button" data-tab="custom" data-en="Add a track">Добавить трек</button></div>
+      <p id="played-status" role="status"></p><ul id="played-list"></ul>
+    </section>
     <section id="scores-pane" class="score-panel" hidden>
       <div class="board-heading"><h2 data-en="Leaderboards">Рекорды</h2>
         <select id="score-map" aria-label="Карта" data-en-aria-label="Map"></select></div>
@@ -80,7 +87,7 @@
     </section>
 
     <form class="card setup" id="setup" novalidate hidden>
-      <div class="section-heading import-heading"><h2>Своя песня</h2><button id="demo-button" type="button" class="text-button" data-en="Play demo">Демо</button></div>
+      <div class="section-heading import-heading"><h2>Своя песня</h2><button class="text-button" type="button" data-tab="history" data-en="Library">Библиотека</button><button id="demo-button" type="button" class="text-button" data-en="Play demo">Демо</button></div>
 
       <label class="field-label" for="track-url">Ссылка на трек</label>
       <div class="track-controls">

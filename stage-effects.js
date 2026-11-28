@@ -1,4 +1,4 @@
-import { texture } from "./lane-sprites.js?v=16";
+import { texture } from "./lane-sprites.js?v=17";
 
 const tau = Math.PI * 2;
 const unit = value => Math.max(0, Math.min(1, value));

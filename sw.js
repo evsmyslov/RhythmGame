@@ -1,14 +1,14 @@
-const currentCache = "ritm-v16";
+const currentCache = "ritm-v17";
 const files = [
-  "./", "./index.html", "./styles.css?v=16", "./app.js?v=16", "./audio.js?v=16", "./sound.js?v=16", "./game.js?v=16",
-  "./chart-spacing.js?v=16", "./settings.js?v=16", "./provider-import.js?v=16", "./mp3-export.js?v=16", "./mp3-worker.js?v=16", "./vendor/lamejs/lame.min.js",
+  "./", "./index.html", "./styles.css?v=17", "./app.js?v=17", "./audio.js?v=17", "./sound.js?v=17", "./game.js?v=17",
+  "./played-tracks.js?v=17", "./chart-spacing.js?v=17", "./settings.js?v=17", "./provider-import.js?v=17", "./mp3-export.js?v=17", "./mp3-worker.js?v=17", "./vendor/lamejs/lame.min.js",
   "./assets/live-room.webp", "./assets/barlow-condensed-extrabold-italic.ttf",
-  "./i18n.js?v=16", "./library.js?v=16", "./catalog.js?v=16",
+  "./i18n.js?v=17", "./library.js?v=17", "./catalog.js?v=17",
   ...["glass-ferry", "copper-wire", "night-market", "red-shift", "ion-storm"].flatMap(id => ["./assets/tracks/" + id + ".mp3", "./assets/covers/" + id + ".webp"]),
-  "./stream-player.js?v=16", "./stream-level.js?v=16", "./track-links.js?v=16", "./palette.js?v=16", "./records.js?v=16", "./timing.js?v=16", "./game-field.js?v=16", "./lane-sprites.js?v=16", "./stage-effects.js?v=16", "./chart-worker.js?v=16", "./manifest.webmanifest?v=16",
+  "./stream-player.js?v=17", "./stream-level.js?v=17", "./track-links.js?v=17", "./palette.js?v=17", "./records.js?v=17", "./timing.js?v=17", "./game-field.js?v=17", "./lane-sprites.js?v=17", "./stage-effects.js?v=17", "./chart-worker.js?v=17", "./manifest.webmanifest?v=17",
   "./assets/aurora-stage.webp", "./assets/dusk-lake.webp", "./assets/spectral-bloom-alpha.webp", "./assets/neon-pulse.mp3", "./assets/night-circuit.mp3",
   "./assets/manrope-latin.woff2", "./assets/manrope-cyrillic.woff2",
-  "./assets/icon-192.png?v=16", "./assets/icon-512.png?v=16", "./assets/icon-maskable.png?v=16"
+  "./assets/icon-192.png?v=17", "./assets/icon-512.png?v=17", "./assets/icon-maskable.png?v=17"
 ];
 const lobbyTrack = new URL("./assets/night-circuit.mp3", self.registration.scope).href;
 const local = new Set(files.map(path => new URL(path, self.registration.scope).href));
