@@ -1,7 +1,7 @@
-import { catalog } from "./catalog.js?v=17";
-import { difficulties } from "./audio.js?v=17";
-import { parseTrackLink, streamingReference } from "./track-links.js?v=17";
-import { t } from "./i18n.js?v=17";
+import { catalog } from "./catalog.js?v=18";
+import { difficulties } from "./audio.js?v=18";
+import { parseTrackLink, streamingReference } from "./track-links.js?v=18";
+import { t } from "./i18n.js?v=18";
 
 const item = id => document.getElementById(id);
 let connection;
@@ -98,10 +98,10 @@ export function bindPlayedTracks(openTrack) {
 
   async function refresh() {
     const current = ++generation;
-    if (document.body.dataset.menu !== "history") return;
+    if (document.body.dataset.menu !== "history" || !item("game").hidden) return;
     try {
       const entries = await read("entries");
-      if (current !== generation) return;
+      if (current !== generation || !item("game").hidden) return;
       entries.sort((a, b) => b.lastPlayed - a.lastPlayed || a.title.localeCompare(b.title));
       const content = document.createDocumentFragment();
       for (const entry of entries) {
@@ -113,21 +113,34 @@ export function bindPlayedTracks(openTrack) {
         name.textContent = entry.title;
         const detail = document.createElement("small");
         detail.textContent = [sourceLabel(entry), entry.preview ? t("Фрагмент", "Preview") : "",
-          t(difficulties[entry.difficulty].name), entry.bpm ? entry.bpm + " BPM" : ""].filter(Boolean).join(" · ");
+          entry.bpm ? entry.bpm + " BPM" : ""].filter(Boolean).join(" · ");
         play.append(name, detail);
+        const level = document.createElement("label");
+        level.className = "history-level";
+        const caption = document.createElement("span");
+        caption.textContent = t("Сложность");
+        const select = document.createElement("select");
+        select.setAttribute("aria-label", caption.textContent + " · " + entry.title);
+        for (const [value, difficulty] of Object.entries(difficulties)) {
+          select.add(new Option(value + "★ · " + t(difficulty.name), value));
+        }
+        select.value = String(entry.difficulty);
+        level.append(caption, select);
         play.onclick = async () => {
           opening?.abort();
           const controller = opening = new AbortController();
           play.disabled = true;
+          select.disabled = true;
           status.textContent = t("Загрузка…", "Loading…");
           try {
-            await openTrack(entry, controller.signal, play);
+            await openTrack({ ...entry, difficulty: Number(select.value) }, controller.signal, play);
             if (!controller.signal.aborted) status.textContent = "";
           } catch {
             if (!controller.signal.aborted) status.textContent = t("Не удалось открыть трек. Попробуй ещё раз.", "Could not open the track. Try again.");
           } finally {
             if (opening === controller) opening = null;
             play.disabled = false;
+            select.disabled = false;
           }
         };
         const remove = document.createElement("button");
@@ -143,7 +156,7 @@ export function bindPlayedTracks(openTrack) {
             await refresh();
           } catch { status.textContent = t("Не удалось удалить трек.", "Could not remove the track."); }
         };
-        row.append(play, remove);
+        row.append(play, level, remove);
         content.append(row);
       }
       list.replaceChildren(content);
@@ -155,7 +168,7 @@ export function bindPlayedTracks(openTrack) {
   }
 
   document.addEventListener("pulsewake-menu", () => { opening?.abort(); refresh(); });
-  document.addEventListener("languagechange", refresh);
+  document.addEventListener("languagechange", () => { list.replaceChildren(); refresh(); });
   return async (track, stream) => {
     try {
       const reference = track.reference;
@@ -173,6 +186,7 @@ export function bindPlayedTracks(openTrack) {
         if (track.originalAudio) audio.put(track.originalAudio, record.key);
         entries.put(record);
       });
+      track.originalAudio = null;
       saveFailed = false;
     } catch { saveFailed = true; }
     refresh();

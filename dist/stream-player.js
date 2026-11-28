@@ -63,28 +63,47 @@ async function youtube(reference, host, signal) {
   signal.throwIfAborted();
   let ready = false;
   let failed = false;
+  let sampledAt = -Infinity;
+  let sampledTime = 0;
+  let duration = 0;
+  let rate = 1;
+  let state = "paused";
+  const invalidate = () => { sampledAt = -Infinity; };
   const target = host.appendChild(document.createElement("div"));
   const player = new YT.Player(target, {
     videoId: reference.id, host: "https://www.youtube-nocookie.com", width: "100%", height: "100%",
     playerVars: { playsinline: 1, origin: location.origin, rel: 0 },
-    events: { onReady: () => { ready = true; }, onError: () => { failed = true; } }
+    events: { onReady: () => { ready = true; }, onError: () => { failed = true; invalidate(); },
+      onStateChange: invalidate, onPlaybackRateChange: invalidate }
   });
   signal.addEventListener("abort", () => player.destroy(), { once: true });
   await waitFor(() => failed || ready, signal, unavailable);
   if (failed) throw new Error(unavailable);
   return {
     read() {
-      const state = player.getPlayerState();
-      return { time: player.getCurrentTime() || 0, duration: player.getDuration(),
-        state: failed ? "error" : state === 0 ? "ended" : state === 1 ? "playing" : state === 3 ? "buffering" : "paused" };
+      // YouTube owns the clock. Interpolate short intervals between samples, and resample
+      // immediately on buffer, seek, pause and rate changes, including native player controls.
+      const now = performance.now();
+      if (now - sampledAt >= 85) {
+        const playerState = player.getPlayerState();
+        state = failed ? "error" : playerState === 0 ? "ended" : playerState === 1 ? "playing" :
+          playerState === 3 ? "buffering" : "paused";
+        sampledTime = player.getCurrentTime() || 0;
+        if (!duration || state !== "playing") duration = player.getDuration() || duration;
+        rate = player.getPlaybackRate?.() || 1;
+        sampledAt = now;
+      }
+      const time = sampledTime + (state === "playing" ? (now - sampledAt) * rate / 1000 : 0);
+      return { time: Math.min(time, duration || Infinity), duration, state, rate };
     },
     title: () => player.getVideoData?.()?.title || "",
     start(seconds, resume) {
       if (!resume || Math.abs(player.getCurrentTime() - seconds) > .7) player.seekTo(seconds, true);
+      invalidate();
       player.playVideo();
     },
     setVolume: value => player.setVolume(value * 100),
-    pause: () => player.pauseVideo()
+    pause() { invalidate(); player.pauseVideo(); }
   };
 }
 

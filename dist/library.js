@@ -1,7 +1,7 @@
-import { catalog } from "./catalog.js?v=17";
-import { difficulties } from "./audio.js?v=17";
-import { t, formatNumber } from "./i18n.js?v=17";
-import { readBest } from "./records.js?v=17";
+import { catalog } from "./catalog.js?v=18";
+import { difficulties } from "./audio.js?v=18";
+import { t, formatNumber } from "./i18n.js?v=18";
+import { readBest } from "./records.js?v=18";
 
 const item = id => document.getElementById(id);
 const api = "https://pulsewake-scores.royalhero8192.chatgpt.site/v1/maps/";

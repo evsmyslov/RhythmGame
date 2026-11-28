@@ -1,7 +1,7 @@
-import { StageEffects } from "./stage-effects.js?v=17";
-import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=17";
+import { StageEffects } from "./stage-effects.js?v=18";
+import { buildLaneSprites, drawLaneSprite } from "./lane-sprites.js?v=18";
 
-import { trackPalette } from "./palette.js?v=17";
+import { trackPalette } from "./palette.js?v=18";
 
 const laneCount = 4;
 const tau = Math.PI * 2;
@@ -43,15 +43,19 @@ export class GameField {
     this.road.setAttribute("aria-hidden", "true");
     Object.assign(this.road.style, { position: "absolute", inset: "0", width: "100%", height: "100%", pointerEvents: "none" });
     stage.insertBefore(this.road, canvas);
+    this.lighting = this.road.cloneNode(false);
+    stage.insertBefore(this.lighting, canvas);
+    this.lightContext = this.lighting.getContext("2d");
     this.motion = matchMedia("(prefers-reduced-motion: reduce)");
     this.effects = new StageEffects(
-      this.ctx, stage.parentElement.querySelector(".stage-bloom"), stage.parentElement.querySelector(".stage-light"), stage.parentElement.querySelector(".stage-shade"), this.motion
+      this.lightContext, stage.parentElement.querySelector(".stage-bloom"), stage.parentElement.querySelector(".stage-light"), stage.parentElement.querySelector(".stage-shade"), this.motion
     );
     this.setEffectsMode("auto");
     this.reset();
   }
 
   setEffectsMode(value) {
+    if (value === this.effectsMode) return;
     this.effectsMode = ["auto", "low", "full"].includes(value) ? value : "auto";
     const budgetPhone = matchMedia("(pointer: coarse)").matches &&
       ((navigator.deviceMemory > 0 && navigator.deviceMemory <= 4) || (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4));
@@ -59,9 +63,11 @@ export class GameField {
   }
 
   applyLowEffects(low) {
-    this.slowFrames = 0;
+    this.overBudgetMs = 0;
     if (this.lowEffects === low) return;
     this.lowEffects = this.effects.low = low;
+    this.stage.parentElement.classList.toggle("light-effects", low);
+    this.lastLighting = -Infinity;
     if (this.width) this.resize();
   }
 
@@ -101,6 +107,8 @@ export class GameField {
     this.pressDepth = [0, 0, 0, 0];
     this.pressedLanes = 0;
     this.previousFrame = undefined;
+    this.lastLighting = -Infinity;
+    this.overBudgetMs = 0;
     this.effects.reset();
   }
 
@@ -111,13 +119,25 @@ export class GameField {
     const width = this.rotated ? screenHeight : screenWidth;
     const height = this.rotated ? screenWidth : screenHeight;
     if (!width || !height) return;
-    this.width = width;
-    this.height = height;
     this.inputOrigin = this.rotated ? top : left;
-    this.farWidth = width * .105;
-    this.floorWidth = width * .998;
     const bottom = Number.parseFloat(style.paddingBottom) || 0;
     const hud = Number.parseFloat(style.paddingTop) || 0;
+    const pixelLimit = Math.sqrt((this.lowEffects ? 620000 : 1320000) / (width * height));
+    const dpr = Math.min(window.devicePixelRatio || 1, this.lowEffects ? 1.1 : 1.65, pixelLimit);
+    if (this.width === width && this.height === height && this.lastDpr === dpr &&
+        this.lastBottom === bottom && this.lastHud === hud && this.lastPalette === this.palette &&
+        this.lastRaySpeed === this.effects.raySpeed && this.lastLow === this.lowEffects) return;
+    this.lastDpr = dpr;
+    this.lastHud = hud;
+    this.lastBottom = bottom;
+    this.lastPalette = this.palette;
+    this.lastRaySpeed = this.effects.raySpeed;
+    this.lastLow = this.lowEffects;
+    this.fitVideoBackdrop();
+    this.width = width;
+    this.height = height;
+    this.farWidth = width * .105;
+    this.floorWidth = width * .998;
     this.strike = height - Math.max(59 + bottom, height * .185);
     this.spawn = Math.max(49 + hud, height * .13);
     this.travel = Math.max(1, this.strike - this.spawn);
@@ -129,11 +149,14 @@ export class GameField {
     this.stage.style.setProperty("--hit-inset", this.hitLeft + "px");
     this.stage.style.setProperty("--key-label-bottom", Math.max(8, height - this.strike - this.targetRadius * .69 - 8) + "px");
 
-    const pixelLimit = Math.sqrt((this.lowEffects ? 620000 : 1320000) / (width * height));
-    const dpr = Math.min(window.devicePixelRatio || 1, this.lowEffects ? 1.1 : 1.65, pixelLimit);
     this.canvas.width = Math.round(width * dpr);
     this.canvas.height = Math.round(height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const lightScale = Math.min(dpr, this.lowEffects ? .6 : .85, Math.sqrt(400000 / (width * height)));
+    this.lighting.width = Math.max(1, Math.round(width * lightScale));
+    this.lighting.height = Math.max(1, Math.round(height * lightScale));
+    this.lightContext.setTransform(this.lighting.width / width, 0, 0, this.lighting.height / height, 0, 0);
+    this.lastLighting = -Infinity;
     this.effects.resize(width, height, this.spawn);
     this.road.width = this.canvas.width;
     this.road.height = this.canvas.height;
@@ -141,13 +164,27 @@ export class GameField {
     road.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.drawRoadSurface(road);
     this.hitShades = this.palette.lanes.map(color => {
-      const shine = this.ctx.createLinearGradient(0, this.spawn, 0, this.strike);
+      const shine = this.lightContext.createLinearGradient(0, this.spawn, 0, this.strike);
       shine.addColorStop(0, color + "00");
       shine.addColorStop(.40, color + "0e");
       shine.addColorStop(.80, color + "66");
       shine.addColorStop(1, color + "be");
       return shine;
     });
+  }
+
+  fitVideoBackdrop() {
+    const layout = this.stage.parentElement;
+    if (!layout.classList.contains("video-backdrop")) return;
+    const width = layout.clientWidth;
+    const height = layout.clientHeight;
+    if (!width || !height) return;
+    // Use a smaller embedded viewport behind the track. The provider can select an
+    // appropriate stream and the compositor enlarges the softly filtered image.
+    const targetHeight = this.lowEffects ? 200 : 260;
+    const scale = Math.min(1, Math.max(200 / width, targetHeight / height));
+    layout.style.setProperty("--clip-size", (scale * 100).toFixed(3) + "%");
+    layout.style.setProperty("--clip-zoom", (1.05 / scale).toFixed(4));
   }
 
   lanePosition(clientX, clientY) {
@@ -171,6 +208,7 @@ export class GameField {
     this.flashes[nearest] = now;
     if (!power) return;
     this.beams[nearest] = now;
+    this.lastLighting = -Infinity;
     if (this.motion.matches) return;
 
     const color = this.palette.lanes[nearest];
@@ -213,8 +251,9 @@ export class GameField {
     const now = performance.now();
     if (musicPlaying && this.effectsMode === "auto" && !this.lowEffects && this.previousFrame !== undefined) {
       const elapsed = now - this.previousFrame;
-      this.slowFrames = elapsed > 24 && elapsed < 100 ? this.slowFrames + 1 : Math.max(0, this.slowFrames - 1);
-      if (this.slowFrames >= 20) this.applyLowEffects(true);
+      // Accumulate repeated late frames even when they are interleaved with smooth ones.
+      if (elapsed < 250) this.overBudgetMs = Math.max(0, this.overBudgetMs + Math.min(40, elapsed - 20));
+      if (this.overBudgetMs >= 150) this.applyLowEffects(true);
     }
     let nearby = 0;
     const activeNote = slide?.note;
@@ -233,9 +272,16 @@ export class GameField {
     this.visualLoad += (load - this.visualLoad) * .15;
 
     ctx.clearRect(0, 0, width, height);
-    this.effects.draw(musicPlaying ? time : -1, now, this.visualLoad);
-    this.drawHitBeams(now);
-    this.effects.drawRoad(this);
+    // Lighting has its own persistent layer. Notes and touch feedback follow every display frame.
+    if (!musicPlaying || now - this.lastLighting >= 1000 / 30 - 1) {
+      this.lastLighting = now;
+      this.lightContext.clearRect(0, 0, width, height);
+      this.effects.draw(musicPlaying ? time : -1, now, this.visualLoad);
+      this.drawHitBeams(now);
+      this.effects.drawRoad(this);
+      this.drawEffects(now);
+      this.drawCelebration(now);
+    }
     this.drawTargets(now, musicPlaying);
 
     ctx.save();
@@ -262,8 +308,6 @@ export class GameField {
       else this.drawTimedHead(note.lane, note.time);
     }
     ctx.restore();
-    this.drawEffects(now);
-    this.drawCelebration(now);
   }
 
   noteY(timestamp) {
@@ -297,7 +341,7 @@ export class GameField {
   }
 
   drawHitBeams(now) {
-    const ctx = this.ctx;
+    const ctx = this.lightContext;
     for (let lane = 0; lane < laneCount; lane++) {
       const age = (now - this.beams[lane]) / 245;
       if (age >= 1) continue;
@@ -502,7 +546,7 @@ export class GameField {
   }
 
   drawImpact(impact, age) {
-    const ctx = this.ctx;
+    const ctx = this.lightContext;
     ctx.globalAlpha = Math.min(1, age * 16 + .48) * (1 - age) ** 1.8 * (.52 + impact.power * .48) * (1 - this.visualLoad * .18);
     const radius = this.targetRadius * (.57 + Math.min(1, age * 3.8) * .66 + age * .32);
     drawLaneSprite(ctx, impact.sprite, this.x(impact.lane), this.strike - 2, radius, .85);
@@ -517,7 +561,7 @@ export class GameField {
       this.celebration = null;
       return;
     }
-    const ctx = this.ctx;
+    const ctx = this.lightContext;
     const progress = elapsed / duration;
     const radius = this.targetRadius;
     ctx.save();
@@ -545,18 +589,19 @@ export class GameField {
   }
 
   drawEffects(now) {
-    const ctx = this.ctx;
+    const ctx = this.lightContext;
     ctx.save();
-    this.impacts = this.impacts.filter(impact => {
+    for (let i = this.impacts.length - 1; i >= 0; i--) {
+      const impact = this.impacts[i];
       const age = (now - impact.born) / 325;
-      if (age >= 1) return false;
-      this.drawImpact(impact, age);
-      return true;
-    });
-    this.ripples = this.ripples.filter(ripple => {
+      if (age >= 1) this.impacts.splice(i, 1);
+      else this.drawImpact(impact, age);
+    }
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const ripple = this.ripples[i];
       const age = (now - ripple.born) / 550;
-      if (age < 0) return true;
-      if (age >= 1) return false;
+      if (age < 0) continue;
+      if (age >= 1) { this.ripples.splice(i, 1); continue; }
       const radius = this.targetRadius + age * this.targetRadius * ripple.size;
       ctx.globalAlpha = (1 - age) ** 2 * (1 - this.visualLoad * .45);
       ctx.beginPath();
@@ -564,18 +609,18 @@ export class GameField {
       ctx.strokeStyle = ripple.color;
       ctx.lineWidth = (1 - age) * 2.7 + .5;
       ctx.stroke();
-      return true;
-    });
-    this.sparks = this.sparks.filter(particle => {
+    }
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
+      const particle = this.sparks[i];
       const age = (now - particle.born) / 1000;
-      if (age >= particle.life) return false;
+      if (age >= particle.life) { this.sparks.splice(i, 1); continue; }
       const x = this.x(particle.lane) + particle.dx * age;
       const y = this.strike + particle.dy * age + 205 * age ** 2;
       ctx.globalAlpha = (1 - age / particle.life) ** 1.7 * (1 - this.visualLoad * .55);
       ctx.fillStyle = particle.color;
       if (particle.size < 1.8) {
         ctx.fillRect(x, y, particle.size * 1.2, particle.size * 1.2);
-        return true;
+        continue;
       }
       ctx.beginPath();
       ctx.moveTo(x, y - particle.size * 1.8);
@@ -584,8 +629,7 @@ export class GameField {
       ctx.lineTo(x - particle.size, y);
       ctx.closePath();
       ctx.fill();
-      return true;
-    });
+    }
     ctx.restore();
   }
 }

@@ -1,4 +1,4 @@
-import { t } from "./i18n.js?v=17";
+import { t } from "./i18n.js?v=18";
 
 function conversionError() {
   return new Error(t("Не удалось преобразовать трек в MP3.", "Could not convert this track to MP3."));
@@ -16,7 +16,7 @@ export function encodeMp3(buffer, { signal, onProgress } = {}) {
   if (!buffer?.length || !buffer.numberOfChannels) return Promise.reject(conversionError());
   if (signal?.aborted) return Promise.reject(cancelled());
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./mp3-worker.js?v=17", import.meta.url));
+    const worker = new Worker(new URL("./mp3-worker.js?v=18", import.meta.url));
     const channels = Math.min(2, buffer.numberOfChannels);
     const input = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
     const encoded = [];

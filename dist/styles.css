@@ -683,8 +683,8 @@ body[data-menu]:not(.playing-view) :focus-visible { outline-color: #ffbf69; }
 .pause-actions .secondary-button { width: 100%; min-height: 38px; }
 .pause-actions .text-button { margin-top: 0; }
 /* Keep the live iframe and its clock mounted when the runway expands. */
-.game .game-layout.video-backdrop #player-panel { display: block; position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; overflow: hidden; pointer-events: none; z-index: 0; }
-.game .video-backdrop #player-host[data-provider="YouTube"] { width: 100%; height: 100%; transform: scale(1.055); filter: blur(6px) brightness(.53) saturate(.82); }
+.game .game-layout.video-backdrop #player-panel { display: grid; place-items: center; position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; overflow: hidden; pointer-events: none; z-index: 0; }
+.game .video-backdrop #player-host[data-provider="YouTube"] { width: var(--clip-size, 100%); height: var(--clip-size, 100%); grid-area: 1 / 1; transform: scale(var(--clip-zoom, 1.05)); filter: blur(3px); }
 .game .video-backdrop #tempo-controls { display: none; }
 .game .game-layout.video-backdrop .stage { inset: 0; z-index: 2; }
 .video-backdrop :is(.stage-light,.stage-shade,.stage-bloom) { z-index: 1; }
@@ -722,3 +722,17 @@ body[data-menu]:not(.playing-view) :focus-visible { outline-color: #ffbf69; }
 .history-remove { width: 44px; min-height: 44px; font-size: 1.35rem; color: #c6baaa; }
 .history-panel .text-button { color: #ffd18a; }
 @media (max-width:370px) { .title-actions button:not(.play-title) svg { display:none; } }
+.health-hud { grid-area: 1 / 3 / 3 / 4; align-self: center; justify-self: end; width: min(100%, 154px); display: grid; gap: 4px; color: #d6fcdf; }
+.health-name { font-size: .7rem; font-weight: 750; line-height: 1; }
+.health-name > :first-child { color: #85e7aa; }
+.health-rail { display: block; border: 1px solid #a3aeb67d; border-radius: 4px; overflow: hidden; height: 8px; background: #17202b; }
+.health-rail > span { display: block; height: 100%; transform-origin: left; background: #8aefae; }
+.health-hud.critical .health-name,.health-hud.critical .health-name > :first-child { color: #ffaf9e; }
+.health-hud.critical .health-rail > span { background: #ff8067; }
+.history-level { display: grid; gap: 2px; margin: 3px 2px; }
+.history-level span { color: #c7bfb3; font-size: .67rem; }
+.history-level select { max-width: 33vw; background: #272621; color: #fff1d8; border: 1px solid #605a4c; border-radius: 5px; padding: 5px; min-height: 34px; font: inherit; font-size: .8rem; }
+@media (max-width: 420px) and (orientation: portrait) { .game:not(.mobile-play) .health-name > :last-child { display: none; } }
+
+.video-backdrop #player-panel::after { content: ""; position: absolute; inset: 0; background: #080b18; opacity: .46; pointer-events: none; }
+.video-backdrop.light-effects #player-host[data-provider="YouTube"] { filter: blur(2px); }
