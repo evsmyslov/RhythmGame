@@ -1,10 +1,11 @@
-import { formatNumber, t } from "./i18n.js?v=15";
-import { StreamLevel, tempoChart } from "./stream-level.js?v=15";
-import { difficulties } from "./audio.js?v=15";
-import { GameField, laneAt } from "./game-field.js?v=15";
-import { HitSounds } from "./sound.js?v=15";
-import { audibleTime, timingOffset } from "./timing.js?v=15";
-import { finishRecord, readBest } from "./records.js?v=15";
+import { preferences } from "./settings.js?v=16";
+import { formatNumber, t } from "./i18n.js?v=16";
+import { StreamLevel, tempoChart } from "./stream-level.js?v=16";
+import { difficulties } from "./audio.js?v=16";
+import { GameField, laneAt } from "./game-field.js?v=16";
+import { HitSounds } from "./sound.js?v=16";
+import { audibleTime, timingOffset } from "./timing.js?v=16";
+import { finishRecord, readBest } from "./records.js?v=16";
 const releaseLead = .055;
 const slideTick = .18;
 const slideLaneTolerance = .59;
@@ -48,6 +49,7 @@ export class RhythmGame {
     window.addEventListener("resize", this.resize);
     item("start-button").addEventListener("click", () => this.start());
     item("replay-button").addEventListener("click", () => this.start());
+    item("restart-button").addEventListener("click", () => { if (this.phase === "paused") this.start(true); });
     item("pause-button").addEventListener("click", () => this.pause());
     const controls = item("lane-controls");
     controls.addEventListener("pointerdown", event => {
@@ -140,6 +142,7 @@ export class RhythmGame {
     item("ready-detail").textContent = t("Подключаем плеер…");
     try {
       await stream.connect();
+      this.applyPreferences();
       if (this.stream !== stream) return;
       this.showReady(false);
     } catch (error) {
@@ -166,6 +169,7 @@ export class RhythmGame {
     item("replay-button").disabled = false;
     this.comboAnimation?.cancel();
     this.clearInputs();
+    this.setVideoBackdrop(false);
     this.track = null;
     this.notes = [];
   }
@@ -193,6 +197,8 @@ export class RhythmGame {
 
   showReady(paused, focus = true) {
     this.phase = paused ? "paused" : "ready";
+    this.setVideoBackdrop(false);
+    item("pause-actions").hidden = !paused;
     item("pause-button").disabled = true;
     item("countdown").hidden = true;
     item("stage-overlay").hidden = false;
@@ -220,14 +226,33 @@ export class RhythmGame {
   makeContext() {
     const Audio = window.AudioContext || window.webkitAudioContext;
     this.context = new Audio();
+    this.musicGain = this.context.createGain();
+    this.musicGain.connect(this.context.destination);
     this.hitSounds = new HitSounds(this.context);
+    this.applyPreferences();
     this.context.addEventListener("statechange", () => {
       if (this.context.state === "interrupted" || this.context.state === "suspended") this.pause(false);
     });
     return this.context;
   }
 
-  async start() {
+  applyPreferences() {
+    if (this.musicGain) this.musicGain.gain.value = preferences.music / 100;
+    if (this.hitSounds) this.hitSounds.output.gain.value = preferences.hits / 100;
+    this.stream?.player?.setVolume?.(preferences.music / 100);
+    this.field.setEffectsMode(preferences.effects);
+  }
+
+  setVideoBackdrop(active) {
+    const enabled = Boolean(active && this.track?.reference?.provider === "YouTube");
+    this.stage.parentElement.classList.toggle("video-backdrop", enabled);
+    const panel = item("player-panel");
+    panel.inert = enabled;
+    if (enabled) panel.setAttribute("aria-hidden", "true");
+    else panel.removeAttribute("aria-hidden");
+  }
+
+  async start(restart = false) {
     const previous = this.phase;
     if (!["ready", "paused", "finished"].includes(previous)) return;
     if (this.track.reference && !this.stream?.player) {
@@ -245,7 +270,8 @@ export class RhythmGame {
       const ctx = this.context || this.makeContext();
       const audioReady = ctx.resume();
       this.onStart?.();
-      const resuming = previous === "paused";
+      const resuming = previous === "paused" && !restart;
+      item("pause-actions").hidden = true;
       if (this.stream) {
         const bpm = this.stream.tempo.valueAsNumber;
         const phase = this.stream.phase;
@@ -264,6 +290,7 @@ export class RhythmGame {
         this.lastStreamTime = clock.time;
         this.lastStreamFrame = performance.now();
         this.phase = "playing";
+        this.setVideoBackdrop(true);
         item("tempo-controls").hidden = true;
         item("combo").hidden = !this.combo;
       } else {
@@ -273,7 +300,7 @@ export class RhythmGame {
         this.sourceStart = ctx.currentTime + (resuming ? 2 : 3);
         this.source = ctx.createBufferSource();
         this.source.buffer = track.buffer;
-        this.source.connect(ctx.destination);
+        this.source.connect(this.musicGain);
         this.source.start(this.sourceStart, this.offset);
         this.phase = "countdown";
       }
@@ -574,6 +601,7 @@ export class RhythmGame {
 
   hit(note, perfect, lane, delta) {
     this.hitSounds.play(true, perfect);
+    if (preferences.vibration) navigator.vibrate?.(perfect ? 12 : 8);
     note.judged = true;
     this.increaseCombo(lane);
     this.scoringCombo++;
@@ -712,6 +740,7 @@ export class RhythmGame {
 
   finish() {
     this.stopAudio();
+    this.setVideoBackdrop(false);
     this.phase = "finished";
     item("tempo-controls").hidden = false;
     item("combo").hidden = true;

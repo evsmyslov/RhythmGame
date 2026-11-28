@@ -1,4 +1,4 @@
-import { texture } from "./lane-sprites.js?v=15";
+import { texture } from "./lane-sprites.js?v=16";
 
 const tau = Math.PI * 2;
 const unit = value => Math.max(0, Math.min(1, value));
@@ -79,11 +79,16 @@ export class StageEffects {
     const ctx = this.ctx;
     const center = width / 2;
     const extent = Math.min(width, height) * .55;
-    this.nebula = ctx.createRadialGradient(center, horizon, 0, center, horizon, extent);
-    this.nebula.addColorStop(0, "#e5fff8");
-    this.nebula.addColorStop(.09, this.colors[0] + "ae");
-    this.nebula.addColorStop(.39, this.colors[1] + "62");
-    this.nebula.addColorStop(1, this.colors[2] + "00");
+    this.glowRadius = extent;
+    this.nebula = texture(192, 192, cache => {
+      const glow = cache.createRadialGradient(0, 0, 0, 0, 0, 96);
+      glow.addColorStop(0, "#e5fff8");
+      glow.addColorStop(.09, this.colors[0] + "ae");
+      glow.addColorStop(.39, this.colors[1] + "62");
+      glow.addColorStop(1, this.colors[2] + "00");
+      cache.fillStyle = glow;
+      cache.fillRect(-96, -96, 192, 192);
+    }).canvas;
 
     const count = width * height < 420000 ? 8 : 12;
     this.rayGroups = this.rayColors.map((color, group) => {
@@ -160,9 +165,13 @@ export class StageEffects {
     const calm = 1 - load * .75;
     const energy = Math.max(peak * .60 * calm, streak);
     const wings = this.streakTier === 4 ? streak * .58 : 0;
-    this.setBloom(unit(Math.max(peak * .40 * calm, wings) + (opening * .16 + beat * .12) * calm));
+    this.setBloom(this.low ? 0 : unit(Math.max(peak * .40 * calm, wings) + (opening * .16 + beat * .12) * calm));
     this.setLight(unit(.16 + (beat * .49 + opening * .13) * calm + energy * .19));
 
+    if (this.low) {
+      // CSS keeps the scene responsive to the music without per-frame rays, arcs or prisms.
+      return;
+    }
     const ctx = this.ctx;
     ctx.save();
     this.drawCore(time, beat * calm, opening * calm, energy * (1 - load * .50));
@@ -187,8 +196,8 @@ export class StageEffects {
     const strength = .11 + .17 * beat + .26 * opening + .43 * energy;
     const radius = Math.min(this.height * .18, this.width * .14);
     ctx.globalAlpha = strength;
-    ctx.fillStyle = this.nebula;
-    ctx.fillRect(x - radius * 3, y - radius * 3, radius * 6, radius * 6);
+    const extent = this.glowRadius;
+    ctx.drawImage(this.nebula, x - extent, y - extent, extent * 2, extent * 2);
     ctx.lineCap = "round";
 
     for (let index = 0; index < 5; index++) {

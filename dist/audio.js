@@ -1,4 +1,4 @@
-import { linkedMedia } from "./track-links.js?v=15";
+import { linkedMedia } from "./track-links.js?v=16";
 
 const maxBytes = 60 * 1024 * 1024;
 const maxVideoBytes = 180 * 1024 * 1024;
@@ -13,11 +13,11 @@ export const difficulties = {
   5: { name: "Мастер", stars: "★★★★★", approach: 1.02, window: .165, perfectWindow: .041, slideGrace: .15 }
 };
 
-export async function prepareTrack({ file, url, demo, difficulty }, signal, update) {
+export async function decodeTrack({ file, url, demo }, signal, update) {
   const video = file && (file.type.startsWith("video/") || (!file.type.startsWith("audio/") && /\.(mp4|mov|m4v|webm)$/i.test(file.name)));
   update(file ? "Читаем файл…" : "Загружаем аудио…");
   const media = file ? await readFile(file, video) : await download(demo ? demoURL : url, signal);
-  if (media.reference) return { ...media, difficulty };
+  if (media.reference) return media;
   const bytes = media;
   signal.throwIfAborted();
   const paletteId = await fingerprint(bytes);
@@ -37,13 +37,18 @@ export async function prepareTrack({ file, url, demo, difficulty }, signal, upda
   if (buffer.duration < 1) throw new Error("Выбери аудио длительностью хотя бы одну секунду.");
   if (buffer.duration > maxDuration) throw new Error("Выбери трек длительностью до 10 минут.");
 
+  return { buffer, songId: (demo ? "neon-pulse" : paletteId) + "-v2", paletteId, duration: buffer.duration };
+}
+
+export async function chartTrack(decoded, difficulty, signal, update) {
+  signal.throwIfAborted();
+  if (decoded.reference) return { ...decoded, difficulty };
+  const { buffer } = decoded;
   update("Генерируем ноты…");
   const { notes, accents, climaxes, brightness } = await scanAudio(buffer, difficulty, signal);
   if (!notes.length) throw new Error("В этом аудио не нашлось слышимых нот или ударов для уровня.");
   return {
-    buffer,
-    songId: demo ? "neon-pulse" : paletteId,
-    paletteId,
+    ...decoded,
     difficulty,
     notes,
     accents,
@@ -153,7 +158,7 @@ function scanAudio(buffer, difficulty, signal) {
   }
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./chart-worker.js?v=15", import.meta.url));
+    const worker = new Worker(new URL("./chart-worker.js?v=16", import.meta.url), { type: "module" });
     const cancel = () => finish(reject, signal.reason);
     function finish(settle, data) {
       worker.terminate();

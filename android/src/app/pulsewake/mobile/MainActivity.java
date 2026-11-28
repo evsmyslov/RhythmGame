@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -28,6 +29,10 @@ import android.widget.Toast;
 
 public final class MainActivity extends Activity {
     private static final int OPEN_TRACK = 17;
+    private static final int SAVE_MP3 = 18;
+    private Mp3Export mp3Export;
+    private Mp3Export pickerOwner;
+    private String pickerRequest;
     private static final int BACKGROUND = 0xff0c1020;
     private static final String TAG = "Pulsewake";
     private WebView web;
@@ -65,6 +70,16 @@ public final class MainActivity extends Activity {
 
         GameAssets assets = new GameAssets(getAssets());
         web.setWebViewClient(new WebViewClient() {
+            @Override public void onPageStarted(WebView view, String url, Bitmap icon) {
+                if (view == web) closeMp3Export();
+            }
+
+            @Override public void onPageFinished(WebView view, String url) {
+                if (view == web && mp3Export == null && Mp3Export.trustedPage(url) && Mp3Export.trustedPage(view.getUrl())) {
+                    mp3Export = new Mp3Export(MainActivity.this, view);
+                }
+            }
+
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 return assets.serve(request);
             }
@@ -120,10 +135,34 @@ public final class MainActivity extends Activity {
         web.loadUrl(GameAssets.HOME);
     }
 
+    void chooseExportDocument(Mp3Export owner, String id, String filename) {
+        if (pickerOwner != null || owner != mp3Export || isDestroyed() || isFinishing()) {
+            owner.documentPicked(id, null, true);
+            return;
+        }
+        pickerOwner = owner;
+        pickerRequest = id;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE).setType("audio/mpeg")
+            .putExtra(Intent.EXTRA_TITLE, filename);
+        try { startActivityForResult(intent, SAVE_MP3); }
+        catch (ActivityNotFoundException unavailable) {
+            pickerOwner = null;
+            pickerRequest = null;
+            owner.documentPicked(id, null, true);
+        }
+    }
+
     @Override protected void onActivityResult(int request, int result, Intent intent) {
         super.onActivityResult(request, result, intent);
-        if (request != OPEN_TRACK) return;
         Uri uri = result == RESULT_OK && intent != null ? intent.getData() : null;
+        if (request == SAVE_MP3) {
+            if (pickerOwner != null) pickerOwner.documentPicked(pickerRequest, uri, false);
+            pickerOwner = null;
+            pickerRequest = null;
+            return;
+        }
+        if (request != OPEN_TRACK) return;
         deliverFile(uri != null && "content".equals(uri.getScheme()) ? new Uri[] {uri} : null);
     }
 
@@ -178,7 +217,7 @@ public final class MainActivity extends Activity {
 
     @Override public void onBackPressed() {
         if (web == null) { finish(); return; }
-        web.evaluateJavascript("(() => { const d=document.querySelector('dialog[open]'); " +
+        web.evaluateJavascript("(() => { if (window.pulsewakeBack && window.pulsewakeBack()) return true; const d=document.querySelector('dialog[open]'); " +
             "if (d) { d.close(); return true; } " +
             "if (location.hash === '#play') { document.getElementById('back-button').click(); return true; } " +
             "return false; })()", handled -> {
@@ -213,7 +252,13 @@ public final class MainActivity extends Activity {
         setContentView(column);
     }
 
+    private void closeMp3Export() {
+        if (mp3Export != null) mp3Export.close();
+        mp3Export = null;
+    }
+
     private void disposeWebView() {
+        closeMp3Export();
         deliverFile(null);
         if (web == null) return;
         WebView old = web;

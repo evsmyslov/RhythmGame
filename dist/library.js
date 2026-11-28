@@ -1,11 +1,11 @@
-import { catalog } from "./catalog.js?v=15";
-import { difficulties } from "./audio.js?v=15";
-import { t, formatNumber } from "./i18n.js?v=15";
-import { readBest } from "./records.js?v=15";
+import { catalog } from "./catalog.js?v=16";
+import { difficulties } from "./audio.js?v=16";
+import { t, formatNumber } from "./i18n.js?v=16";
+import { readBest } from "./records.js?v=16";
 
 const item = id => document.getElementById(id);
 const api = "https://pulsewake-scores.royalhero8192.chatgpt.site/v1/maps/";
-const mapKey = map => ({ songId: map.id, difficulty: map.difficulty });
+const mapKey = map => ({ songId: map.id + "-v2", difficulty: map.difficulty });
 
 function playerKey() {
   let token = localStorage.getItem("pulsewake-ranking-key");
@@ -19,7 +19,7 @@ function playerKey() {
 
 export function bindLibrary(play, exitGame) {
   let selected = catalog[0];
-  let tab = "maps";
+  let tab = "title";
   let opening;
   let request;
   let sending = false;
@@ -30,39 +30,47 @@ export function bindLibrary(play, exitGame) {
   for (const map of catalog) select.add(new Option(map.title, map.id));
 
   function renderMaps() {
-    list.replaceChildren();
-    for (const map of catalog) {
-      const row = document.createElement("button");
-      row.className = "map-row";
-      row.type = "button";
-      row.setAttribute("aria-pressed", String(map === selected));
-      const art = new Image(46, 46);
-      art.src = "./assets/covers/" + map.id + ".webp"; art.alt = "";
-      const label = document.createElement("span");
-      const title = document.createElement("b");
-      title.textContent = map.title;
-      const level = document.createElement("small");
-      level.textContent = t(difficulties[map.difficulty].name);
-      label.append(title, level);
-      const tempo = document.createElement("span");
-      tempo.className = "speed";
-      tempo.textContent = map.bpm + " BPM";
-      row.append(art, label, tempo);
-      row.onclick = () => {
-        opening?.abort();
-        selected = map;
-        select.value = map.id;
-        renderMaps();
-        list.children[map.difficulty - 1].focus({ preventScroll: true });
-      };
-      list.append(row);
+    if (!list.childElementCount) {
+      for (const map of catalog) {
+        const row = document.createElement("button");
+        row.className = "map-row";
+        row.type = "button";
+        const art = new Image(240, 240);
+        art.src = "./assets/covers/" + map.id + ".webp";
+        art.alt = "";
+        const title = document.createElement("b");
+        title.textContent = map.title;
+        const detail = document.createElement("small");
+        row.append(art, title, detail);
+        row.onclick = () => chooseMap(map);
+        list.append(row);
+      }
     }
-    item("map-art").src = "./assets/covers/" + selected.id + ".webp";
+    for (const [index, row] of Array.from(list.children).entries()) {
+      const map = catalog[index];
+      row.setAttribute("aria-pressed", String(map === selected));
+      row.lastElementChild.textContent = t(difficulties[map.difficulty].name) + " · " + map.bpm + " BPM";
+    }
+    item("previous-map").disabled = selected === catalog[0];
+    item("next-map").disabled = selected === catalog.at(-1);
     item("map-title").textContent = selected.title;
     const seconds = Math.round(selected.duration);
     item("map-info").textContent = t(difficulties[selected.difficulty].name) + " · " + selected.bpm + " BPM · " +
       Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
   }
+
+  function chooseMap(map) {
+    if (!map) return;
+    opening?.abort();
+    selected = map;
+    select.value = map.id;
+    renderMaps();
+    const card = list.children[catalog.indexOf(map)];
+    list.scrollTo({ left: card.offsetLeft - list.offsetLeft - (list.clientWidth - card.offsetWidth) / 2,
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+  }
+  item("previous-map").onclick = () => chooseMap(catalog[catalog.indexOf(selected) - 1]);
+  item("next-map").onclick = () => chooseMap(catalog[catalog.indexOf(selected) + 1]);
 
   async function leaderboard(post = false) {
     request?.abort();
@@ -88,7 +96,7 @@ export function bindLibrary(play, exitGame) {
         options.body = JSON.stringify({ name: nickname, score: best.score });
         localStorage.setItem("pulsewake-player-name", nickname);
       }
-      const response = await fetch(api + map.id + "/scores", options);
+      const response = await fetch(api + mapKey(map).songId + "/scores", options);
       if (!response.ok) throw new Error("network");
       const { scores } = await response.json();
       if (request !== controller) return;
@@ -116,6 +124,9 @@ export function bindLibrary(play, exitGame) {
     tab = next;
     opening?.abort();
     for (const button of document.querySelectorAll("[data-tab]")) button.setAttribute("aria-pressed", String(button.dataset.tab === tab));
+    document.body.dataset.menu = tab;
+    item("title-pane").hidden = tab !== "title";
+    item("menu-back").hidden = tab === "title";
     item("maps-pane").hidden = tab !== "maps";
     item("setup").hidden = tab !== "custom";
     item("scores-pane").hidden = tab !== "scores";
@@ -124,6 +135,7 @@ export function bindLibrary(play, exitGame) {
   }
 
   document.querySelectorAll("[data-tab]").forEach(button => button.onclick = () => showTab(button.dataset.tab));
+  item("menu-back").onclick = () => showTab("title");
   select.onchange = () => leaderboard();
   item("submit-score").onsubmit = async event => {
     event.preventDefault();
@@ -155,4 +167,10 @@ export function bindLibrary(play, exitGame) {
   };
   document.addEventListener("languagechange", () => { renderMaps(); if (tab === "scores") leaderboard(); });
   renderMaps();
+  showTab("title");
+  return () => {
+    if (tab === "title") return false;
+    showTab("title");
+    return true;
+  };
 }

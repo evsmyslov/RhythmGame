@@ -1,5 +1,8 @@
+import { resolveMediaRequest } from "./media.js";
+
 // Player credentials are generated on the device. Only their hashes are stored.
 const charts = new Set(["glass-ferry", "copper-wire", "night-market", "red-shift", "ion-storm"]);
+for (const id of [...charts]) charts.add(id + "-v2");
 const headers = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -12,8 +15,9 @@ export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
+    if (path === "/v1/media") return resolveMediaRequest(request);
     if (path === "/") return json({ name: "Pulsewake Scores", maps: Array.from(charts) });
-    const match = /^\/v1\/maps\/([a-z-]+)\/scores$/.exec(path);
+    const match = /^\/v1\/maps\/([a-z0-9-]+)\/scores$/.exec(path);
     if (!match || !charts.has(match[1])) return json({ error: "unknown_map" }, 404);
     const map = match[1];
     if (request.method === "POST") {

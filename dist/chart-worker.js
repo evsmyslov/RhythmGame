@@ -1,3 +1,5 @@
+import { spaceGestures } from "./chart-spacing.js?v=16";
+
 const difficultySettings = {
   1: { gap: .40, density: 1.55, minimum: .50, slideGap: 3.6, slideLegs: 1,
     patterns: [[1, 2, 1, 2], [0, 2, 1, 3], [1, 3, 0, 2]] },
@@ -147,7 +149,7 @@ function makeChart(samples, sampleRate, difficulty) {
   const high = Math.sqrt(trebleTotal);
   return {
     brightness: high / (high + Math.sqrt(bassTotal) || 1),
-    notes: addSlides(notes, difficulty, settings, bodyEnergy, peakBody, frameTime),
+    notes: spaceGestures(addSlides(notes, difficulty, settings, bodyEnergy, peakBody, frameTime), difficulty),
     ...stageTiming(peaks, maxStrength, energy, frameTime, duration)
   };
 }

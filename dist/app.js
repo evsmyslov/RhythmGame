@@ -1,10 +1,14 @@
-import { bindLibrary } from "./library.js?v=15";
-import { initLanguage, t } from "./i18n.js?v=15";
-import { prepareTrack } from "./audio.js?v=15";
-import { parseTrackLink, streamingReference } from "./track-links.js?v=15";
-import { RhythmGame } from "./game.js?v=15";
-import { LobbyMusic } from "./sound.js?v=15";
-import { bindCalibration } from "./timing.js?v=15";
+import { bindLibrary } from "./library.js?v=16";
+import { initLanguage, t } from "./i18n.js?v=16";
+import { decodeTrack, chartTrack } from "./audio.js?v=16";
+import { parseTrackLink, streamingReference } from "./track-links.js?v=16";
+import { RhythmGame } from "./game.js?v=16";
+import { LobbyMusic } from "./sound.js?v=16";
+import { bindCalibration } from "./timing.js?v=16";
+
+import { bindSettings } from "./settings.js?v=16";
+import { providerReference, resolveProvider } from "./provider-import.js?v=16";
+import { exportMp3 } from "./mp3-export.js?v=16";
 
 initLanguage();
 
@@ -25,6 +29,7 @@ document.documentElement.classList.toggle("native-app", nativeApp);
 let androidPaused = false;
 const game = new RhythmGame(enterLandscape);
 const lobbyMusic = new LobbyMusic(item("lobby-music"), item("lobby-music-button"));
+bindSettings(game, item("lobby-music"));
 const fullscreenButton = item("fullscreen-button");
 fullscreenButton.hidden = nativeApp || !document.fullscreenEnabled || !gameScreen.requestFullscreen;
 let fullscreenNoticeTimer = null;
@@ -71,6 +76,8 @@ document.addEventListener("fullscreenchange", () => {
 const homeHash = location.hash === "#play" ? "" : location.hash;
 let job = null;
 let file = null;
+let choice = null;
+const referenceOf = value => streamingReference(value) || providerReference(value);
 let returnFocus = startGeneration;
 
 const difficultyHints = [
@@ -91,10 +98,12 @@ describeDifficulty();
 document.addEventListener("languagechange", () => {
   describeDifficulty();
   updateStreamingSource();
+  if (choice) renderChoice();
+  if (game.phase === "paused") game.showReady(true, false);
 });
 
 bindCalibration(() => {
-  if (job || !gameScreen.hidden) return false;
+  if (job || (!gameScreen.hidden && game.phase !== "paused")) return false;
   lobbyMusic.setInLobby(false);
 }, offset => {
   game.timingOffset = offset;
@@ -111,7 +120,8 @@ function setError(message = "", onLink = false) {
 }
 
 function updateStreamingSource() {
-  const reference = streamingReference(trackURL.value.trim());
+  item("clear-url").hidden = !trackURL.value;
+  const reference = referenceOf(trackURL.value.trim());
   item("streaming-source").hidden = !reference;
   if (!reference) return;
   const link = item("streaming-link");
@@ -119,15 +129,16 @@ function updateStreamingSource() {
   link.querySelector("span").textContent = t("Открыть в ", "Open in ") + reference.provider;
   const hint = item("streaming-hint");
   hint.hidden = Boolean(file);
-  hint.textContent = t(reference.provider === "Spotify"
-    ? "Трек откроется в Spotify. В некоторых регионах и без входа доступен только фрагмент."
-    : "Трек откроется в плеере. Темп можно задать перед игрой.");
+  hint.textContent = reference.provider === "YouTube" ? t("Трек откроется в плеере. Темп можно задать перед игрой.")
+    : t("Проверим, какое аудио доступно по этой ссылке. Для полной версии можно выбрать свой файл.",
+        "We’ll check the audio available for this link. You can also choose your own full recording.");
 }
 
 function setFile(selected) {
+  resetImport();
   file = selected;
   if (!selected) trackFile.value = "";
-  if (selected && !streamingReference(trackURL.value.trim())) trackURL.value = "";
+  if (selected && !referenceOf(trackURL.value.trim())) trackURL.value = "";
   fileTag.hidden = !selected;
   fileButton.hidden = Boolean(selected);
   item("file-name").textContent = selected?.name ?? "";
@@ -147,7 +158,18 @@ removeFile.addEventListener("click", () => {
   fileButton.focus();
 });
 
+function resetImport() {
+  choice = null;
+  item("source-choice").hidden = true;
+  item("import-result").textContent = "";
+}
+item("clear-url").onclick = () => {
+  trackURL.value = "";
+  trackURL.dispatchEvent(new Event("input"));
+  trackURL.focus();
+};
 trackURL.addEventListener("input", () => {
+  resetImport();
   setError();
   updateStreamingSource();
 });
@@ -155,7 +177,7 @@ trackURL.addEventListener("change", clearFileForDirectLink);
 
 function clearFileForDirectLink() {
   const value = trackURL.value.trim();
-  if (file && value && !streamingReference(value)) setFile(null);
+  if (file && value && !referenceOf(value)) setFile(null);
 }
 
 item("paste-button").addEventListener("click", async () => {
@@ -164,6 +186,7 @@ item("paste-button").addEventListener("click", async () => {
     if (job) return;
     if (value.trim()) {
       trackURL.value = value.trim();
+      resetImport();
       clearFileForDirectLink();
       updateStreamingSource();
       setError();
@@ -183,53 +206,115 @@ form.addEventListener("submit", event => {
 
 demoButton.addEventListener("click", () => generate(true));
 
+item("download-mp3").onclick = () => generate(false, "save");
+item("play-provider").onclick = () => { if (choice) generate(false, choice.intent, choice.source); };
+updateStreamingSource();
+
 function setBusy(busy) {
-  const controls = [startGeneration, demoButton, item("paste-button"), trackURL, fileButton,
-    removeFile, item("timing-button"), ...document.querySelectorAll("[data-tab]"), ...difficultyControl];
+  const controls = [startGeneration, demoButton, item("paste-button"), item("clear-url"), item("menu-back"),
+    item("download-mp3"), item("play-provider"), trackURL, fileButton, removeFile, item("timing-button"), ...difficultyControl];
   controls.forEach(control => { control.disabled = busy; });
   item("generation-status").hidden = !busy;
 }
-
-item("cancel-generation").addEventListener("click", () => {
+function cancelJob() {
   job?.abort();
   job = null;
   setBusy(false);
   returnFocus.focus();
-});
+}
+item("cancel-generation").onclick = cancelJob;
 
-async function generate(demo) {
+function renderChoice() {
+  const { source, intent } = choice;
+  const preview = source.status === "preview";
+  const title = [source.artist, source.title].filter(Boolean).join(" — ");
+  const label = preview
+    ? t("Сервис открыл только демофрагмент. Для полной песни выбери файл с телефона.",
+        "Only a preview is available. Choose a file from your device to use the full song.")
+    : t("Можно сыграть через плеер сервиса или выбрать аудиофайл. Длительность задаёт сервис.",
+        "Play through the service’s player or choose an audio file. The service controls playback length.");
+  item("choice-text").textContent = title ? title + ". " + label : label;
+  item("play-provider").textContent = preview ? (intent === "save"
+    ? t("Скачать фрагмент MP3", "Save preview MP3") : t("Играть фрагмент", "Play preview"))
+    : t("Открыть плеер", "Open player");
+  item("source-choice").hidden = false;
+}
+async function generate(demo, intent = "game", accepted = null) {
   if (job) return;
+  resetImport();
   setError();
-  let url;
-  const source = trackURL.value.trim();
-  const reference = streamingReference(source);
-  if (!demo && !reference && (source || !file)) {
-    try {
-      if (!source) throw new Error("Вставь ссылку на трек или выбери файл.");
-      url = parseTrackLink(source);
-    } catch (error) {
-      setError(error.message, true);
-      trackURL.focus();
-      return;
-    }
-  }
+  const value = trackURL.value.trim();
+  const reference = !demo && !file && referenceOf(value);
   const difficulty = Number(difficultyControl.value);
-  const controller = new AbortController();
-  job = controller;
-  returnFocus = demo ? demoButton : startGeneration;
+  const controller = job = new AbortController();
+  const { signal } = controller;
+  returnFocus = demo ? demoButton : intent === "save" ? item("download-mp3") : startGeneration;
+  const update = message => { if (!signal.aborted) item("status-text").textContent = t(message); };
+  const unavailable = () => new Error(t("Сервис не предоставляет файл для скачивания. Выбери аудио с телефона или вставь прямую ссылку на файл.",
+    "The service does not provide a downloadable file. Choose audio from your device or paste a direct file link."));
   setBusy(true);
   try {
-    const track = !demo && reference && !file ? { reference, difficulty } : await prepareTrack({
-      file: demo || url ? null : file,
-      url,
-      demo,
-      difficulty
-    }, controller.signal, message => {
-      if (job === controller) item("status-text").textContent = t(message);
-    });
-    if (job === controller) showGame(track);
+    let url, title = "", preview = false;
+    if (reference) {
+      update(t("Проверяем ссылку…", "Checking link…"));
+      if (reference.provider === "YouTube") {
+        if (intent === "save") throw unavailable();
+        showGame({ reference, difficulty });
+        return;
+      }
+      const source = accepted || await resolveProvider(reference, signal);
+      signal.throwIfAborted();
+      if (source.reason === "choose-track") {
+        const result = item("import-result");
+        result.textContent = t("Выбери запись из альбома", "Choose a recording");
+        for (const track of source.choices) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = track.title;
+          button.className = "text-button";
+          button.onclick = () => {
+            trackURL.value = track.url;
+            trackURL.dispatchEvent(new Event("input"));
+            generate(false, intent);
+          };
+          result.append(button);
+        }
+        return;
+      }
+      if (source.status === "blocked" || (source.status === "embed-only" && intent === "save")) throw unavailable();
+      preview = source.status === "preview";
+      if (!accepted && (preview || source.status === "embed-only")) {
+        choice = { source, intent };
+        renderChoice();
+        return;
+      }
+      if (source.status === "embed-only") {
+        showGame({ reference: source.reference, difficulty });
+        return;
+      }
+      url = parseTrackLink(source.mediaUrl);
+      title = [source.artist, source.title].filter(Boolean).join(" — ");
+    } else if (!demo && !file) {
+      if (!value) throw new Error("Вставь ссылку на трек или выбери файл.");
+      url = parseTrackLink(value);
+    }
+    const decoded = await decodeTrack({ file: demo ? null : file, url, demo }, signal, update);
+    signal.throwIfAborted();
+    if (intent === "save") {
+      if (!decoded.buffer) throw unavailable();
+      const basename = file?.name || url?.pathname.split("/").pop() || "Pulsewake";
+      const filename = (title || basename.replace(/\.[a-z0-9]{1,5}$/i, "")) + (preview ? " (preview)" : "");
+      await exportMp3(decoded.buffer, { filename, signal, onProgress: fraction =>
+        update(t("Подготовка MP3 · ", "Encoding MP3 · ") + Math.round(fraction * 100) + "%") });
+      signal.throwIfAborted();
+      item("import-result").textContent = t("MP3 готов", "MP3 ready") + " · " + filename + ".mp3";
+    } else {
+      const track = await chartTrack(decoded, difficulty, signal, update);
+      signal.throwIfAborted();
+      showGame({ ...track, title });
+    }
   } catch (error) {
-    if (job === controller) setError(error.message || "Не удалось сгенерировать уровень.", Boolean(url));
+    if (!signal.aborted && error.name !== "AbortError") setError(error.message || "Не удалось сгенерировать уровень.", !!value && !file);
   } finally {
     if (job === controller) {
       job = null;
@@ -274,11 +359,7 @@ function exitGame() {
 
 item("back-button").addEventListener("click", exitGame);
 item("result-back").addEventListener("click", exitGame);
-document.querySelector(".brand").addEventListener("click", event => {
-  if (gameScreen.hidden) return;
-  event.preventDefault();
-  exitGame();
-});
+item("pause-exit").onclick = exitGame;
 window.addEventListener("popstate", () => {
   if (location.hash === "#play" && gameScreen.hidden) {
     history.replaceState(null, "", location.pathname + location.search + homeHash);
@@ -325,10 +406,22 @@ installButton.addEventListener("click", async () => {
 if (!nativeApp && "serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
 
 
-bindLibrary(track => {
+const libraryBack = bindLibrary(track => {
   returnFocus = item("play-map");
   showGame(track);
 }, exitGame);
+
+window.pulsewakeBack = () => {
+  const dialog = Array.from(document.querySelectorAll("dialog[open]")).pop();
+  if (dialog) { dialog.close(); return true; }
+  if (!gameScreen.hidden) {
+    if (["starting", "playing", "countdown"].includes(game.phase)) game.pause();
+    else exitGame();
+    return true;
+  }
+  if (job) { cancelJob(); return true; }
+  return libraryBack();
+};
 
 if (nativeApp) {
   window.addEventListener("pulsewake-pause", () => {
