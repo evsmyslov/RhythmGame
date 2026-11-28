@@ -1,4 +1,4 @@
-import { linkedMedia } from "./track-links.js?v=16";
+import { linkedMedia } from "./track-links.js?v=17";
 
 const maxBytes = 60 * 1024 * 1024;
 const maxVideoBytes = 180 * 1024 * 1024;
@@ -13,7 +13,7 @@ export const difficulties = {
   5: { name: "Мастер", stars: "★★★★★", approach: 1.02, window: .165, perfectWindow: .041, slideGrace: .15 }
 };
 
-export async function decodeTrack({ file, url, demo }, signal, update) {
+export async function decodeTrack({ file, url, demo, keepAudio = false }, signal, update) {
   const video = file && (file.type.startsWith("video/") || (!file.type.startsWith("audio/") && /\.(mp4|mov|m4v|webm)$/i.test(file.name)));
   update(file ? "Читаем файл…" : "Загружаем аудио…");
   const media = file ? await readFile(file, video) : await download(demo ? demoURL : url, signal);
@@ -24,6 +24,7 @@ export async function decodeTrack({ file, url, demo }, signal, update) {
   signal.throwIfAborted();
   update(video ? "Извлекаем звуковую дорожку…" : "Разбираем звук…");
 
+  const originalAudio = keepAudio && !demo ? new Blob([bytes], { type: file?.type || "" }) : null;
   let buffer;
   try {
     const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
@@ -37,7 +38,7 @@ export async function decodeTrack({ file, url, demo }, signal, update) {
   if (buffer.duration < 1) throw new Error("Выбери аудио длительностью хотя бы одну секунду.");
   if (buffer.duration > maxDuration) throw new Error("Выбери трек длительностью до 10 минут.");
 
-  return { buffer, songId: (demo ? "neon-pulse" : paletteId) + "-v2", paletteId, duration: buffer.duration };
+  return { buffer, originalAudio, songId: (demo ? "neon-pulse" : paletteId) + "-v2", paletteId, duration: buffer.duration };
 }
 
 export async function chartTrack(decoded, difficulty, signal, update) {
@@ -158,7 +159,7 @@ function scanAudio(buffer, difficulty, signal) {
   }
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./chart-worker.js?v=16", import.meta.url), { type: "module" });
+    const worker = new Worker(new URL("./chart-worker.js?v=17", import.meta.url), { type: "module" });
     const cancel = () => finish(reject, signal.reason);
     function finish(settle, data) {
       worker.terminate();

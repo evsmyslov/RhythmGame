@@ -4,16 +4,18 @@ A four-lane rhythm game for Android and the web. The five built-in maps range fr
 
 Pause to resume, restart or change settings. Track, menu and hit volume, effects quality, calibration, vibration and language are saved on the device. The game includes English and Russian. Built-in maps work offline in the APK. The Records tab shows a public leaderboard for each built-in map. Players can submit their local best under a nickname.
 
+The player library lives on the device. Played files and readable audio links are stored for offline replay. Streaming links retain their tempo, beat offset and difficulty. The library also includes played built-in maps and the demo. Removing an entry leaves personal scores intact.
+
 ## Web
 
 Serve `dist/` with a static HTTP server. GitHub Pages serves the contents on `gh-pages`.
 
 ## Android
 
-Version 1.2.0 updates 1.1.0 in place, uses `app.pulsewake.mobile` and can be installed alongside 1.0.3 (`app.pulsewake.game`). Requires Android 10 or later. To build, install a JDK, Android SDK Platform 36 and Build Tools 36.0.0. Set `ANDROID_HOME`, `PULSEWAKE_KEYSTORE` (keystore containing the alias `pulsewake`) and `PULSEWAKE_STORE_PASS`, then run:
+Version 1.2.1 updates 1.2.0 and 1.1.0 in place, uses `app.pulsewake.mobile` and can be installed alongside 1.0.3 (`app.pulsewake.game`). Requires Android 10 or later. To build, install a JDK, Android SDK Platform 36 and Build Tools 36.0.0. Set `ANDROID_HOME`, `PULSEWAKE_KEYSTORE` (keystore containing the alias `pulsewake`) and `PULSEWAKE_STORE_PASS`, then run:
 
 ```sh
-bash android/build.sh Pulsewake-1.2.0.apk
+bash android/build.sh Pulsewake-1.2.1.apk
 ```
 
 ## Scores

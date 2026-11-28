@@ -1,11 +1,11 @@
-import { preferences } from "./settings.js?v=16";
-import { formatNumber, t } from "./i18n.js?v=16";
-import { StreamLevel, tempoChart } from "./stream-level.js?v=16";
-import { difficulties } from "./audio.js?v=16";
-import { GameField, laneAt } from "./game-field.js?v=16";
-import { HitSounds } from "./sound.js?v=16";
-import { audibleTime, timingOffset } from "./timing.js?v=16";
-import { finishRecord, readBest } from "./records.js?v=16";
+import { preferences } from "./settings.js?v=17";
+import { formatNumber, t } from "./i18n.js?v=17";
+import { StreamLevel, tempoChart } from "./stream-level.js?v=17";
+import { difficulties } from "./audio.js?v=17";
+import { GameField, laneAt } from "./game-field.js?v=17";
+import { HitSounds } from "./sound.js?v=17";
+import { audibleTime, timingOffset } from "./timing.js?v=17";
+import { finishRecord, readBest } from "./records.js?v=17";
 const releaseLead = .055;
 const slideTick = .18;
 const slideLaneTolerance = .59;
@@ -30,7 +30,8 @@ function comboTier(combo) {
 }
 
 export class RhythmGame {
-  constructor(onStart) {
+  constructor(onStart, onPlayed) {
+    this.onPlayed = onPlayed;
     this.onStart = onStart;
     this.timingOffset = timingOffset();
     this.phase = "idle";
@@ -116,6 +117,7 @@ export class RhythmGame {
   }
 
   open(track) {
+    this.recordedPlay = false;
     document.querySelector(".game-layout").classList.toggle("with-player", Boolean(track.reference));
     if (track.reference) Object.assign(track, { notes: [], duration: 0, paletteId: track.reference.url });
     this.track = track;
@@ -134,7 +136,7 @@ export class RhythmGame {
   async connectStream() {
     const track = this.track;
     this.stream?.close();
-    const stream = this.stream = new StreamLevel(track.reference);
+    const stream = this.stream = new StreamLevel(track.reference, track.historyEntry);
     const button = item("start-button");
     button.disabled = true;
     item("play-error").hidden = true;
@@ -407,6 +409,10 @@ export class RhythmGame {
         this.phase = "playing";
         item("countdown").hidden = true;
         item("combo").hidden = !this.combo;
+      }
+      if (!this.recordedPlay) {
+        this.recordedPlay = true;
+        this.onPlayed?.(this.track, this.stream);
       }
       const chartTime = time - this.timingOffset;
       this.updateSlide(chartTime);

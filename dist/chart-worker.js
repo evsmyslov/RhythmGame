@@ -1,4 +1,4 @@
-import { spaceGestures } from "./chart-spacing.js?v=16";
+import { spaceGestures } from "./chart-spacing.js?v=17";
 
 const difficultySettings = {
   1: { gap: .40, density: 1.55, minimum: .50, slideGap: 3.6, slideLegs: 1,

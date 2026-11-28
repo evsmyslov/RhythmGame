@@ -78,6 +78,7 @@ async function youtube(reference, host, signal) {
       return { time: player.getCurrentTime() || 0, duration: player.getDuration(),
         state: failed ? "error" : state === 0 ? "ended" : state === 1 ? "playing" : state === 3 ? "buffering" : "paused" };
     },
+    title: () => player.getVideoData?.()?.title || "",
     start(seconds, resume) {
       if (!resume || Math.abs(player.getCurrentTime() - seconds) > .7) player.seekTo(seconds, true);
       player.playVideo();

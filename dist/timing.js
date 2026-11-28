@@ -1,4 +1,4 @@
-import { t } from "./i18n.js?v=16";
+import { t } from "./i18n.js?v=17";
 const preference = "ritm-timing-offset";
 const limit = 220;
 const beat = .56;

@@ -1,7 +1,7 @@
-import { spaceGestures } from "./chart-spacing.js?v=16";
-import { t } from "./i18n.js?v=16";
-import { maxDuration } from "./audio.js?v=16";
-import { connectPlayer, waitFor } from "./stream-player.js?v=16";
+import { spaceGestures } from "./chart-spacing.js?v=17";
+import { t } from "./i18n.js?v=17";
+import { maxDuration } from "./audio.js?v=17";
+import { connectPlayer, waitFor } from "./stream-player.js?v=17";
 
 const item = id => document.getElementById(id);
 const patterns = [[0, 2, 1, 3], [1, 2, 0, 3, 1, 0, 2, 3], [0, 1, 2, 3, 2, 0, 3, 1]];
@@ -42,13 +42,13 @@ export function tempoChart(reference, difficulty, duration, bpm, phase) {
 }
 
 export class StreamLevel {
-  constructor(reference) {
+  constructor(reference, previous) {
     this.reference = reference;
     this.life = new AbortController();
     this.taps = [];
-    this.phase = 0;
+    this.phase = previous?.phase || 0;
     this.tempo = item("stream-tempo");
-    this.tempo.value = "120";
+    this.tempo.value = previous?.bpm || 120;
     this.hint = item("tempo-hint");
     this.hint.textContent = t("Введи BPM или включи трек и отбей четыре доли.");
     item("player-panel").hidden = false;

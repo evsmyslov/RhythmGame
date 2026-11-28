@@ -709,3 +709,16 @@ body[data-menu]:not(.playing-view) :focus-visible { outline-color: #ffbf69; }
   .pause-actions { gap: 1px 12px; margin-top: 5px; }
   #ready-screen:has(.pause-actions:not([hidden])) .overlay-icon { display:none; }
 }
+.title-actions { width: min(100%, 505px); grid-template-columns: repeat(3,minmax(0,1fr)); }
+.title-actions button:not(.play-title) { gap: 7px; padding-inline: clamp(7px,1.35vw,15px); font-size: clamp(.76rem,1.7vw,.93rem); }
+#setup .import-heading h2 { margin-right: auto; }
+#played-list { padding: 0; margin: 12px 0 0; list-style: none; }
+#played-list li { display: flex; align-items: center; min-width: 0; border-top: 1px solid #49443b; }
+.history-play,.history-remove { border: 0; color: inherit; background: transparent; }
+.history-play { position: relative; flex: 1; min-width: 0; padding: 10px 8px 10px 26px; text-align: left; min-height: 52px; }
+.history-play::before { content: "▶"; position: absolute; left: 1px; top: 50%; transform: translateY(-50%); color: #ffba60; font-size: .75rem; }
+.history-play strong,.history-play small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.history-play small { margin-top: 3px; color: #c7bfb3; }
+.history-remove { width: 44px; min-height: 44px; font-size: 1.35rem; color: #c6baaa; }
+.history-panel .text-button { color: #ffd18a; }
+@media (max-width:370px) { .title-actions button:not(.play-title) svg { display:none; } }
