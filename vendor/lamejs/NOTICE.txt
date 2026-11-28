@@ -1,0 +1,6 @@
+Pulsewake uses lamejs 1.2.1 by Alex Zhukov, a JavaScript port of the LAME MP3 encoder.
+LAME project: https://lame.sourceforge.net/
+lamejs project: https://github.com/zhuker/lamejs
+Corresponding source for this unmodified distribution: https://registry.npmjs.org/lamejs/-/lamejs-1.2.1.tgz
+License declared by lamejs: GNU Lesser General Public License version 3.
+The player loads lame.min.js as a separate, replaceable script. See COPYING.LESSER, COPYING, and UPSTREAM-LICENSE.txt.

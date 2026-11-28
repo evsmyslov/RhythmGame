@@ -82,6 +82,7 @@ async function youtube(reference, host, signal) {
       if (!resume || Math.abs(player.getCurrentTime() - seconds) > .7) player.seekTo(seconds, true);
       player.playVideo();
     },
+    setVolume: value => player.setVolume(value * 100),
     pause: () => player.pauseVideo()
   };
 }
@@ -169,6 +170,7 @@ async function soundcloud(reference, host, signal) {
       if (!resume || Math.abs(clock.read().time - seconds) > .7) widget.seekTo(seconds * 1000);
       widget.play();
     },
+    setVolume: value => widget.setVolume(value * 100),
     pause: () => widget.pause()
   };
 }
@@ -194,6 +196,7 @@ async function mediaElement(reference, host, signal) {
       audio.currentTime = seconds;
       return audio.play();
     },
+    setVolume: value => { audio.volume = value; },
     pause: () => audio.pause()
   };
 }

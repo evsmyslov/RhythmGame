@@ -8,13 +8,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Pulsewake — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
   <title>Pulsewake — Твой ритм</title>
-  <link rel="manifest" href="manifest.webmanifest?v=15">
-  <link rel="icon" href="assets/icon-192.png?v=15">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=15">
-  <link rel="stylesheet" href="styles.css?v=15">
-  <script type="module" src="app.js?v=15"></script>
+  <link rel="manifest" href="manifest.webmanifest?v=16">
+  <link rel="icon" href="assets/icon-192.png?v=16">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=16">
+  <link rel="stylesheet" href="styles.css?v=16">
+  <script type="module" src="app.js?v=16"></script>
 </head>
-<body>
+<body data-menu="title">
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <symbol id="i-timing" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M9 3v6m6 0v6m-7 0v6" stroke-width="3"/></symbol>
     <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .4c0 1.7-2.5 1.9-2.5 3.6m0 3h.01"/></symbol>
@@ -39,37 +39,32 @@
 
   <header class="site-header">
     <div class="header-inner">
-      <a class="brand" href="./" aria-label="Pulsewake, главная">
-        <img class="brand-icon" src="assets/icon-192.png?v=15" width="38" height="38" alt=""><span>Pulsewake<span class="brand-period">.</span></span>
-      </a>
+      <button class="menu-back" id="menu-back" type="button" hidden><span aria-hidden="true">‹</span><span data-en="Main menu">В меню</span></button>
       <nav class="header-actions" aria-label="Управление и справка">
-        <button type="button" class="quiet-button" id="language-button">EN</button>
-        <button class="quiet-button lobby-music-button" id="lobby-music-button" aria-label="Музыка в лобби" aria-pressed="false" type="button"><svg><use href="#i-volume-off"/></svg><span>Музыка</span></button>
-        <button class="quiet-button install-button" id="install-button" type="button" hidden><svg><use href="#i-download"/></svg><span>Установить</span></button>
-        <button class="quiet-button timing-button" id="timing-button" aria-label="Калибровка" title="Калибровка звука" type="button"><svg><use href="#i-timing"/></svg><span>Калибровка</span></button>
+        <button class="quiet-button" id="settings-button" type="button" aria-label="Настройки" data-en-aria-label="Settings"><svg><use href="#i-timing"/></svg><span data-en="Settings">Настройки</span></button>
         <button class="quiet-button" id="help-button" aria-label="Как играть" type="button"><svg><use href="#i-help"/></svg><span>Как играть</span></button>
       </nav>
     </div>
   </header>
-
   <audio id="lobby-music" src="assets/night-circuit.mp3" preload="none" loop aria-hidden="true"></audio>
-
   <main class="home page-width" id="home">
-    <nav class="library-nav" aria-label="Меню" data-en-aria-label="Menu">
-      <button type="button" data-tab="maps" aria-pressed="true" data-en="Maps">Карты</button>
-      <button type="button" data-tab="custom" aria-pressed="false" data-en="Import track">Свой трек</button>
-      <button type="button" data-tab="scores" aria-pressed="false" data-en="Leaderboards">Рекорды</button>
-    </nav>
-    <section id="maps-pane" class="collection">
-      <div class="sleeve" id="sleeve">
-        <img id="map-art" alt="" width="512" height="512">
-        <div class="sleeve-caption">
-          <p id="map-info"></p>
-          <h1 id="map-title">Glass Ferry</h1>
-          <button class="primary-button" id="play-map" type="button"><svg><use href="#i-play"/></svg><span data-en="Play">Играть</span></button>
-        </div>
+    <section id="title-pane" aria-label="Pulsewake">
+      <h1 class="wordmark">PULSEWAKE</h1>
+      <nav class="title-actions" aria-label="Меню" data-en-aria-label="Menu">
+        <button class="play-title" type="button" data-tab="maps"><svg><use href="#i-play"/></svg><span data-en="Play">Играть</span></button>
+        <button type="button" data-tab="custom"><svg><use href="#i-music"/></svg><span data-en="My music">Своя музыка</span></button>
+        <button type="button" data-tab="scores"><svg><use href="#i-star"/></svg><span data-en="Leaderboards">Рекорды</span></button>
+      </nav>
+    </section>
+    <section id="maps-pane" class="collection" hidden>
+      <div class="deck-title"><h1 data-en="Choose a track">Выбор трека</h1><div class="deck-arrows">
+        <button type="button" id="previous-map" aria-label="Предыдущая карта" data-en-aria-label="Previous map">‹</button>
+        <button type="button" id="next-map" aria-label="Следующая карта" data-en-aria-label="Next map">›</button>
+      </div></div>
+      <div id="map-list" class="album-deck"></div>
+      <div class="map-footer"><div><strong id="map-title">Glass Ferry</strong><p id="map-info"></p></div>
+        <button class="primary-button" id="play-map" type="button"><svg><use href="#i-play"/></svg><span data-en="Start">Начать</span></button>
       </div>
-      <div class="tracklist"><h2 data-en="Select a map">Выбор карты</h2><div id="map-list"></div></div>
       <p id="map-error" class="field-error" role="status" hidden></p>
     </section>
     <section id="scores-pane" class="score-panel" hidden>
@@ -92,6 +87,7 @@
         <div class="url-field">
           <svg class="field-icon"><use href="#i-link"/></svg>
           <input id="track-url" type="url" placeholder="YouTube, Spotify, SoundCloud или аудио" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="source-error streaming-hint">
+          <button class="clear-url icon-button" id="clear-url" type="button" aria-label="Очистить ссылку" data-en-aria-label="Clear link" hidden><svg><use href="#i-close"/></svg></button>
           <button class="paste-button" id="paste-button" type="button" aria-label="Вставить ссылку" title="Вставить ссылку"><svg><use href="#i-clip"/></svg><span>Вставить</span></button>
         </div>
         <div class="source-row">
@@ -133,7 +129,13 @@
         <p class="difficulty-detail" id="difficulty-detail">Размеренный ритм и короткие удержания.</p>
       </fieldset>
 
-      <button class="primary-button generate-button" id="generate-button" type="submit"><svg><use href="#i-bolt"/></svg>Сгенерировать уровень</button>
+      <div class="import-actions"><button class="primary-button generate-button" id="generate-button" type="submit"><svg><use href="#i-bolt"/></svg>Сгенерировать уровень</button>
+        <button type="button" class="secondary-button" id="download-mp3"><svg><use href="#i-download"/></svg><span data-en="Save MP3">Скачать MP3</span></button>
+      </div>
+      <div class="source-choice" id="source-choice" hidden><p id="choice-text" role="status"></p>
+        <button type="button" class="secondary-button" id="play-provider"></button>
+      </div>
+      <div id="import-result" role="status"></div>
       <div class="generation-status" id="generation-status" hidden><span class="spinner" aria-hidden="true"></span><span id="status-text" role="status"></span><button class="text-button" id="cancel-generation" type="button">Отмена</button></div>
     </form>
   </main>
@@ -191,6 +193,11 @@
             <p class="ready-hint" id="resume-hint" hidden>Чтобы продолжить слайд, удерживай его подсвеченную ноту.</p>
             <p class="play-error" id="play-error" role="alert" hidden></p>
             <button class="primary-button" id="start-button" type="button"><svg><use href="#i-play"/></svg><span>Начать игру</span></button>
+            <div id="pause-actions" class="pause-actions" hidden>
+              <button class="secondary-button" id="restart-button" type="button"><svg><use href="#i-replay"/></svg><span data-en="Restart">Начать заново</span></button>
+              <button class="text-button" id="pause-settings" type="button" data-en="Settings">Настройки</button>
+              <button class="text-button" id="pause-exit" type="button" data-en="Exit track">Выйти из трека</button>
+            </div>
           </div>
           <div class="overlay-content" id="results-screen" hidden>
             <span class="overlay-icon"><svg><use href="#i-check"/></svg></span>
@@ -211,6 +218,23 @@
     </div>
   </main>
 
+  <dialog class="info-dialog preferences" id="settings-dialog" aria-labelledby="settings-title">
+    <div class="dialog-heading"><h2 id="settings-title" data-en="Settings">Настройки</h2><form method="dialog"><button class="icon-button" aria-label="Закрыть"><svg><use href="#i-close"/></svg></button></form></div>
+    <div class="pref-grid">
+      <label class="range-setting"><span data-en="Track volume">Громкость трека</span><output for="music-level"></output><input id="music-level" data-pref="music" type="range" min="0" max="100" step="1"></label>
+      <label class="range-setting"><span data-en="Hit sounds">Звук попадания</span><output for="hit-level"></output><input id="hit-level" data-pref="hits" type="range" min="0" max="100" step="1"></label>
+      <label class="range-setting"><span data-en="Menu volume">Громкость меню</span><output for="lobby-level"></output><input id="lobby-level" data-pref="lobby" type="range" min="0" max="100" step="1"></label>
+      <label class="pref-inline"><span data-en="Visual effects">Эффекты</span><select id="effects-mode" data-pref="effects">
+        <option value="auto" data-en="Automatic">Авто</option><option value="low" data-en="Low">Лёгкие</option><option value="full" data-en="Full">Полные</option></select></label>
+      <label class="pref-inline" id="vibration-row"><span data-en="Hit vibration">Вибрация при попадании</span><input type="checkbox" id="hit-vibration" data-pref="vibration"></label>
+      <div class="pref-inline"><span data-en="Language">Язык</span><button type="button" class="quiet-button" id="language-button">EN</button></div>
+    </div>
+    <div class="settings-extras">
+      <button class="quiet-button lobby-music-button" id="lobby-music-button" aria-pressed="false" type="button"><svg><use href="#i-volume-off"/></svg><span data-en="Menu music">Музыка в меню</span></button>
+      <button class="quiet-button" id="timing-button" aria-label="Калибровка" type="button"><svg><use href="#i-timing"/></svg><span>Калибровка</span></button>
+      <button class="quiet-button" id="install-button" type="button" hidden><svg><use href="#i-download"/></svg><span>Установить</span></button>
+    </div>
+  </dialog>
   <dialog class="info-dialog" id="help-dialog" aria-labelledby="help-title">
     <div class="dialog-heading"><h2 id="help-title">Как играть</h2><form method="dialog"><button class="icon-button" aria-label="Закрыть"><svg><use href="#i-close"/></svg></button></form></div>
     <ol>

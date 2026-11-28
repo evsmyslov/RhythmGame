@@ -1,4 +1,4 @@
-import { t } from "./i18n.js?v=15";
+import { t } from "./i18n.js?v=16";
 const lobbyPreference = "ritm-lobby-music";
 
 export class LobbyMusic {
@@ -63,6 +63,8 @@ export class LobbyMusic {
 export class HitSounds {
   constructor(context) {
     this.context = context;
+    this.output = context.createGain();
+    this.output.connect(context.destination);
     this.lastTime = -Infinity;
     this.lastWasHit = false;
     this.tap = this.makeBuffer(false);
@@ -96,7 +98,7 @@ export class HitSounds {
     const cue = ctx.createBufferSource();
     cue.buffer = hit ? this.hit : this.tap;
     cue.playbackRate.value = perfect ? 1.12 : 1;
-    cue.connect(ctx.destination);
+    cue.connect(this.output);
     cue.onended = () => cue.disconnect();
     cue.start();
     this.lastTime = now;
