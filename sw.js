@@ -1,14 +1,14 @@
-const currentCache = "ritm-v17";
+const currentCache = "ritm-v18";
 const files = [
-  "./", "./index.html", "./styles.css?v=17", "./app.js?v=17", "./audio.js?v=17", "./sound.js?v=17", "./game.js?v=17",
-  "./played-tracks.js?v=17", "./chart-spacing.js?v=17", "./settings.js?v=17", "./provider-import.js?v=17", "./mp3-export.js?v=17", "./mp3-worker.js?v=17", "./vendor/lamejs/lame.min.js",
+  "./", "./index.html", "./styles.css?v=18", "./app.js?v=18", "./audio.js?v=18", "./sound.js?v=18", "./game.js?v=18",
+  "./played-tracks.js?v=18", "./chart-spacing.js?v=18", "./settings.js?v=18", "./provider-import.js?v=18", "./mp3-export.js?v=18", "./mp3-worker.js?v=18", "./vendor/lamejs/lame.min.js",
   "./assets/live-room.webp", "./assets/barlow-condensed-extrabold-italic.ttf",
-  "./i18n.js?v=17", "./library.js?v=17", "./catalog.js?v=17",
+  "./i18n.js?v=18", "./library.js?v=18", "./catalog.js?v=18",
   ...["glass-ferry", "copper-wire", "night-market", "red-shift", "ion-storm"].flatMap(id => ["./assets/tracks/" + id + ".mp3", "./assets/covers/" + id + ".webp"]),
-  "./stream-player.js?v=17", "./stream-level.js?v=17", "./track-links.js?v=17", "./palette.js?v=17", "./records.js?v=17", "./timing.js?v=17", "./game-field.js?v=17", "./lane-sprites.js?v=17", "./stage-effects.js?v=17", "./chart-worker.js?v=17", "./manifest.webmanifest?v=17",
+  "./stream-player.js?v=18", "./stream-level.js?v=18", "./track-links.js?v=18", "./palette.js?v=18", "./records.js?v=18", "./timing.js?v=18", "./game-field.js?v=18", "./lane-sprites.js?v=18", "./stage-effects.js?v=18", "./chart-worker.js?v=18", "./manifest.webmanifest?v=18",
   "./assets/aurora-stage.webp", "./assets/dusk-lake.webp", "./assets/spectral-bloom-alpha.webp", "./assets/neon-pulse.mp3", "./assets/night-circuit.mp3",
   "./assets/manrope-latin.woff2", "./assets/manrope-cyrillic.woff2",
-  "./assets/icon-192.png?v=17", "./assets/icon-512.png?v=17", "./assets/icon-maskable.png?v=17"
+  "./assets/icon-192.png?v=18", "./assets/icon-512.png?v=18", "./assets/icon-maskable.png?v=18"
 ];
 const lobbyTrack = new URL("./assets/night-circuit.mp3", self.registration.scope).href;
 const local = new Set(files.map(path => new URL(path, self.registration.scope).href));

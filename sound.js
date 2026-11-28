@@ -1,4 +1,4 @@
-import { t } from "./i18n.js?v=17";
+import { t } from "./i18n.js?v=18";
 const lobbyPreference = "ritm-lobby-music";
 
 export class LobbyMusic {

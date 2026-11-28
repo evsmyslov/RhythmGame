@@ -1,7 +1,7 @@
-import { spaceGestures } from "./chart-spacing.js?v=17";
-import { t } from "./i18n.js?v=17";
-import { maxDuration } from "./audio.js?v=17";
-import { connectPlayer, waitFor } from "./stream-player.js?v=17";
+import { spaceGestures } from "./chart-spacing.js?v=18";
+import { t } from "./i18n.js?v=18";
+import { maxDuration } from "./audio.js?v=18";
+import { connectPlayer, waitFor } from "./stream-player.js?v=18";
 
 const item = id => document.getElementById(id);
 const patterns = [[0, 2, 1, 3], [1, 2, 0, 3, 1, 0, 2, 3], [0, 1, 2, 3, 2, 0, 3, 1]];

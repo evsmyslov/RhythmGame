@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Pulsewake — мобильная ритм-игра с четырьмя дорожками и генерацией уровней под вашу музыку.">
   <title>Pulsewake — Твой ритм</title>
-  <link rel="manifest" href="manifest.webmanifest?v=17">
-  <link rel="icon" href="assets/icon-192.png?v=17">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=17">
-  <link rel="stylesheet" href="styles.css?v=17">
-  <script type="module" src="app.js?v=17"></script>
+  <link rel="manifest" href="manifest.webmanifest?v=18">
+  <link rel="icon" href="assets/icon-192.png?v=18">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=18">
+  <link rel="stylesheet" href="styles.css?v=18">
+  <script type="module" src="app.js?v=18"></script>
 </head>
 <body data-menu="title">
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -158,6 +158,10 @@
           <div><span>Счёт</span><strong id="score">0</strong></div>
           <div><span>Точность</span><strong id="accuracy">—</strong></div>
         </div>
+        <div class="health-hud" id="health-meter" role="meter" aria-label="Здоровье" data-en-aria-label="Health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+          <span class="health-name"><span aria-hidden="true">♥</span> <span data-en="Health">Здоровье</span></span>
+          <span class="health-rail"><span id="health-fill"></span></span>
+        </div>
         <div class="game-actions">
           <button class="quiet-button" id="fullscreen-button" aria-label="Во весь экран" title="Во весь экран" type="button" hidden><svg><use href="#i-fullscreen"/></svg></button>
           <button class="quiet-button" id="pause-button" aria-label="Пауза" title="Пауза" type="button" disabled><svg><use href="#i-pause"/></svg></button>
@@ -208,7 +212,7 @@
           </div>
           <div class="overlay-content" id="results-screen" hidden>
             <span class="overlay-icon"><svg><use href="#i-check"/></svg></span>
-            <h1>Трек завершён</h1>
+            <h1 id="result-title">Трек завершён</h1>
             <dl class="result-metrics">
               <div><dt>Счёт</dt><dd id="result-score">0</dd></div>
               <div><dt>Точность</dt><dd id="result-accuracy">0%</dd></div>
@@ -244,6 +248,7 @@
   </dialog>
   <dialog class="info-dialog" id="help-dialog" aria-labelledby="help-title">
     <div class="dialog-heading"><h2 id="help-title">Как играть</h2><form method="dialog"><button class="icon-button" aria-label="Закрыть"><svg><use href="#i-close"/></svg></button></form></div>
+    <p data-en="Missed notes or broken slides cost health. Hits restore it. When health reaches zero, the run ends.">Пропущенная нота или сорванный слайд отнимают здоровье. Попадания его восстанавливают. На нуле попытка заканчивается.</p>
     <ol>
       <li>Вставь ссылку на трек из YouTube, Spotify или SoundCloud. Для плеера укажи темп или отбей его по музыке. Для прямых ссылок и файлов игра сама найдёт удары. Длину доступного фрагмента определяет сервис.</li>
       <li>Выбери от одной до пяти звёзд. На сложных уровнях появляются быстрые переборы, двойные ноты и слайды с несколькими переходами.</li>

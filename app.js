@@ -1,16 +1,16 @@
-import { catalog } from "./catalog.js?v=17";
-import { bindPlayedTracks, readPlayedAudio } from "./played-tracks.js?v=17";
-import { bindLibrary, loadMap } from "./library.js?v=17";
-import { initLanguage, t } from "./i18n.js?v=17";
-import { decodeTrack, chartTrack } from "./audio.js?v=17";
-import { parseTrackLink, streamingReference } from "./track-links.js?v=17";
-import { RhythmGame } from "./game.js?v=17";
-import { LobbyMusic } from "./sound.js?v=17";
-import { bindCalibration } from "./timing.js?v=17";
+import { catalog } from "./catalog.js?v=18";
+import { bindPlayedTracks, readPlayedAudio } from "./played-tracks.js?v=18";
+import { bindLibrary, loadMap } from "./library.js?v=18";
+import { initLanguage, t } from "./i18n.js?v=18";
+import { decodeTrack, chartTrack } from "./audio.js?v=18";
+import { parseTrackLink, streamingReference } from "./track-links.js?v=18";
+import { RhythmGame } from "./game.js?v=18";
+import { LobbyMusic } from "./sound.js?v=18";
+import { bindCalibration } from "./timing.js?v=18";
 
-import { bindSettings } from "./settings.js?v=17";
-import { providerReference, resolveProvider } from "./provider-import.js?v=17";
-import { exportMp3 } from "./mp3-export.js?v=17";
+import { bindSettings } from "./settings.js?v=18";
+import { providerReference, resolveProvider } from "./provider-import.js?v=18";
+import { exportMp3 } from "./mp3-export.js?v=18";
 
 initLanguage();
 
@@ -334,7 +334,12 @@ async function generate(demo, intent = "game", accepted = null) {
 async function replaySaved(entry, signal, button) {
   let track;
   if (entry.kind === "map") {
-    track = await loadMap(catalog.find(map => map.id === entry.map), signal);
+    const map = catalog.find(map => map.id === entry.map);
+    track = await loadMap(map, signal);
+    if (map.difficulty !== entry.difficulty) {
+      const { buffer, duration, paletteId } = track;
+      track = await chartTrack({ buffer, duration, paletteId, songId: map.id + "-remix-v2" }, entry.difficulty, signal, () => {});
+    }
   } else if (entry.kind === "stream") {
     track = { reference: entry.reference, difficulty: entry.difficulty };
   } else {
@@ -375,6 +380,7 @@ function showHome() {
   if (document.fullscreenElement === gameScreen) document.exitFullscreen().catch(() => {});
   gameScreen.hidden = true;
   home.hidden = false;
+  document.dispatchEvent(new Event("pulsewake-menu"));
   document.body.classList.remove("playing-view");
   lobbyMusic.setInLobby(true);
   returnFocus.focus();
